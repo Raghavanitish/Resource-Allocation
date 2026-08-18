@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Resource Allocation Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#1E2761;
+    --navy-deep:#141B4D;
+    --ice:#CADCFC;
+    --ice-soft:#EEF3FC;
+    --amber:#C98A2C;
+    --teal:#2F6F6A;
+    --paper:#F7F8FB;
+    --line:#DDE3EE;
+    --ink:#1B2033;
+    --ink-soft:#5B6478;
+    --danger:#B5432E;
+    --ok:#2F6F6A;
+    --warn:#C98A2C;
+    font-family:Calibri, "Segoe UI", Arial, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--paper); color:var(--ink); }
+  header{
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-deep) 100%);
+    color:#fff;
+    padding:22px 28px 20px;
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    border-bottom:3px solid var(--amber);
+  }
+  header .title-block{ font-family:Cambria, Georgia, serif; }
+  header h1{ margin:0 0 4px; font-size:22px; font-weight:700; letter-spacing:.2px; }
+  header p{ margin:0; font-size:12.5px; color:var(--ice); font-family:Calibri, sans-serif; }
+  .eyebrow{ text-transform:uppercase; letter-spacing:1.5px; font-size:10.5px; color:var(--amber); font-weight:700; margin-bottom:6px; }
+  .headbtns{ display:flex; gap:10px; flex-wrap:wrap; }
+  .btn{
+    border:none; padding:10px 16px; font-weight:700; font-size:12.5px; border-radius:3px; cursor:pointer;
+    display:flex; align-items:center; gap:7px; white-space:nowrap; transition:transform .12s ease, box-shadow .12s ease;
+    font-family:Calibri, sans-serif;
+  }
+  .btn:hover{ transform:translateY(-1px); }
+  .btn:active{ transform:translateY(0); }
+  .btn-amber{ background:var(--amber); color:#1B2033; box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .btn-ghost{ background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.4); }
+  .btn-teal{ background:var(--teal); color:#fff; }
+  .btn-outline{ background:#fff; color:var(--navy); border:1px solid var(--navy); }
+  .btn-sm{ padding:5px 10px; font-size:11px; border-radius:3px; }
+
+  nav.tabs{
+    background:#fff; border-bottom:1px solid var(--line); padding:0 28px; display:flex; gap:4px;
+  }
+  nav.tabs button{
+    border:none; background:none; padding:13px 18px; font-size:13px; font-weight:700; color:var(--ink-soft);
+    cursor:pointer; border-bottom:3px solid transparent; font-family:Calibri, sans-serif;
+  }
+  nav.tabs button.active{ color:var(--navy); border-bottom-color:var(--amber); }
+  nav.tabs button:hover{ color:var(--navy); }
+
+  .toolbar{
+    background:#fff; border-bottom:1px solid var(--line); padding:14px 28px; display:flex; gap:18px;
+    flex-wrap:wrap; align-items:flex-end; position:sticky; top:0; z-index:20;
+  }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.8px; color:var(--ink-soft); font-weight:700; }
+  .field select, .field input[type="text"], .field input[type="number"], .field input[type="date"]{
+    border:1px solid var(--line); border-radius:3px; padding:8px 10px; font-size:13px; min-width:190px;
+    background:#fff; color:var(--ink); font-family:Calibri, sans-serif;
+  }
+  .field select:focus, .field input:focus{ outline:2px solid var(--navy); outline-offset:1px; }
+  .custom-dropdown{
+    position:relative; min-width:190px;
+  }
+  .custom-dropdown .dropdown-search{
+    width:100%; border:1px solid var(--line); border-radius:3px; padding:8px 10px; font-size:13px;
+    background:#fff; color:var(--ink); font-family:Calibri, sans-serif;
+  }
+  .custom-dropdown .dropdown-search:focus{ outline:2px solid var(--navy); outline-offset:1px; }
+  .custom-dropdown .dropdown-options{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:50;
+    background:#fff; border:1px solid var(--line); border-radius:4px; box-shadow:0 8px 24px rgba(20,27,77,.16);
+    max-height:240px; overflow:auto; display:none;
+  }
+  .custom-dropdown.open .dropdown-options{ display:block; }
+  .custom-option{
+    padding:8px 10px; font-size:12.5px; cursor:pointer; color:var(--ink); border-bottom:1px solid #F0F3F8;
+  }
+  .custom-option:hover, .custom-option.active{ background:var(--ice-soft); }
+  .custom-option:last-child{ border-bottom:none; }
+  .dropdown-no-result{ padding:8px 10px; font-size:12px; color:var(--ink-soft); }
+  .custom-dropdown select{ display:none; }
+  .addrow .custom-dropdown{ flex:1 1 220px; max-width:220px; }
+  .stats{ display:flex; gap:22px; margin-left:auto; align-items:center; }
+  .stat{ text-align:right; }
+  .stat .num{ font-family:Cambria, serif; font-size:19px; font-weight:700; color:var(--navy); line-height:1; }
+  .stat .lbl{ font-size:10px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-soft); }
+
+  main{ padding:20px 28px 60px; }
+
+  .mgr-group{ margin-bottom:22px; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:#fff; }
+  .mgr-head{
+    background:var(--ice-soft); padding:10px 16px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--line); gap:10px; flex-wrap:wrap;
+  }
+  .mgr-head .left{ display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+  .mgr-head:hover{ background:#E2EBFA; }
+  .mgr-head .name{ font-family:Cambria, serif; font-weight:700; color:var(--navy); font-size:14.5px; display:flex; align-items:center; gap:8px; }
+  .mgr-head .count{
+    font-size:11px; color:var(--ink-soft); font-weight:600; background:#fff; border:1px solid var(--line);
+    padding:2px 9px; border-radius:20px;
+  }
+  .mgr-head .right{ display:flex; align-items:center; gap:8px; }
+  .caret{ transition:transform .15s ease; color:var(--navy); font-size:11px; }
+  .mgr-group.collapsed .caret{ transform:rotate(-90deg); }
+  .mgr-group.collapsed .emp-table-wrap{ display:none; }
+
+  table.emp-table{ width:100%; border-collapse:collapse; }
+  table.emp-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-soft);
+    padding:9px 14px; border-bottom:1px solid var(--line); background:#fff;
+  }
+  table.emp-table td{ padding:10px 14px; border-bottom:1px solid #EEF0F5; font-size:13px; vertical-align:top; }
+  table.emp-table tr:last-child td{ border-bottom:none; }
+  table.emp-table tr:hover td{ background:#FBFCFE; }
+  .empname{ font-weight:700; color:var(--ink); }
+  .empmeta{ font-size:11px; color:var(--ink-soft); margin-top:1px; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:6px; max-width:520px; }
+  .chip{
+    display:flex; align-items:center; gap:6px; background:var(--ice-soft); border:1px solid var(--ice);
+    border-radius:20px; padding:4px 6px 4px 12px; font-size:12px; color:var(--navy);
+  }
+  .chip input{ width:38px; border:none; background:transparent; font-weight:700; color:var(--navy); font-size:12px; text-align:right; padding:0; }
+  .chip input:focus{ outline:1px solid var(--navy); border-radius:2px; }
+  .chip .pct{ font-size:11px; color:var(--ink-soft); }
+  .chip .rm{ border:none; background:none; color:var(--danger); cursor:pointer; font-size:14px; line-height:1; padding:2px 4px; border-radius:50%; }
+  .chip .rm:hover{ background:#FBE4DF; }
+
+  .addrow{ display:flex; gap:6px; margin-top:8px; align-items:center; flex-wrap:wrap; }
+  .addrow select{ border:1px dashed var(--line); border-radius:3px; padding:5px 7px; font-size:12px; max-width:220px; color:var(--ink-soft); }
+  .addrow input[type="number"]{ width:56px; border:1px solid var(--line); border-radius:3px; padding:5px 6px; font-size:12px; }
+  .addrow button{ border:1px solid var(--teal); background:#fff; color:var(--teal); font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:3px; cursor:pointer; }
+  .addrow button:hover{ background:var(--teal); color:#fff; }
+
+  .totalcell{ text-align:right; white-space:nowrap; }
+  .totalpill{ display:inline-block; min-width:52px; text-align:center; padding:4px 9px; border-radius:20px; font-weight:700; font-size:12px; }
+  .totalpill.ok{ background:#E4F1EF; color:var(--ok); }
+  .totalpill.warn{ background:#FBF0DF; color:var(--warn); }
+  .totalpill.over{ background:#FBE4DF; color:var(--danger); }
+  .totalpill.zero{ background:#EEF0F5; color:var(--ink-soft); }
+
+  .empty-state{ padding:40px 20px; text-align:center; color:var(--ink-soft); font-size:13px; }
+
+  .subtabs{ display:flex; gap:2px; padding:0 16px; background:#fff; border-bottom:1px solid var(--line); }
+  .subtab-btn{
+    border:none; background:none; padding:10px 14px; font-size:12px; font-weight:700; color:var(--ink-soft);
+    cursor:pointer; border-bottom:2px solid transparent; font-family:Calibri, sans-serif;
+  }
+  .subtab-btn.active{ color:var(--navy); border-bottom-color:var(--teal); }
+  .subtab-btn:hover{ color:var(--navy); }
+
+  .summary-wrap{ padding:18px 20px 22px; background:#fff; }
+  .summary-chart-row{ display:flex; align-items:center; gap:30px; flex-wrap:wrap; margin-bottom:18px; }
+  .summary-chart{ flex:0 0 auto; }
+  .pie-legend{ display:flex; flex-direction:column; gap:9px; }
+  .legend-item{ display:flex; align-items:center; gap:9px; font-size:12.5px; }
+  .legend-dot{ width:11px; height:11px; border-radius:50%; flex:0 0 auto; }
+  .legend-label{ color:var(--ink); }
+  .legend-count{ color:var(--ink-soft); font-weight:700; margin-left:auto; padding-left:14px; }
+  .summary-list-head{ font-size:12.5px; font-weight:700; color:var(--navy); margin-bottom:8px; }
+  table.summary-table{ width:100%; border-collapse:collapse; }
+  table.summary-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-soft);
+    padding:8px 12px; border-bottom:1px solid var(--line);
+  }
+  table.summary-table td{ padding:8px 12px; border-bottom:1px solid #EEF0F5; font-size:12.5px; vertical-align:middle; }
+  table.summary-table tr:last-child td{ border-bottom:none; }
+
+  /* Employee list tab */
+  .elist-card{ background:#fff; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  table.roster-table{ width:100%; border-collapse:collapse; }
+  table.roster-table th{
+    text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-soft);
+    padding:10px 14px; border-bottom:1px solid var(--line); background:var(--ice-soft); position:sticky; top:117px;
+  }
+  table.gddp-table th{ position:static; top:auto; }
+  table.roster-table td{ padding:9px 14px; border-bottom:1px solid #EEF0F5; font-size:12.5px; vertical-align:middle; }
+  table.roster-table tr:hover td{ background:#FBFCFE; }
+  table.roster-table select, table.roster-table input{
+    border:1px solid var(--line); border-radius:3px; padding:5px 7px; font-size:12px; font-family:Calibri, sans-serif; width:100%;
+  }
+  .status-badge{ font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px; }
+  .status-badge.active{ background:#E4F1EF; color:var(--ok); }
+  .status-badge.other{ background:#EEF0F5; color:var(--ink-soft); }
+  .new-tag{ font-size:9.5px; font-weight:700; color:#fff; background:var(--teal); padding:2px 7px; border-radius:20px; margin-left:6px; vertical-align:middle; }
+  .rm-emp{ border:none; background:none; color:var(--danger); cursor:pointer; font-size:16px; padding:2px 6px; }
+
+  /* overlay form */
+  .overlay{
+    position:fixed; inset:0; background:rgba(20,27,77,.45); display:flex; align-items:center; justify-content:center;
+    z-index:100; padding:20px;
+  }
+  .overlay.hidden{ display:none; }
+  .panel{
+    background:#fff; border-radius:8px; width:100%; max-width:480px; padding:24px 26px; box-shadow:0 12px 34px rgba(0,0,0,.3);
+    max-height:90vh; overflow:auto;
+  }
+  .panel h3{ margin:0 0 4px; font-family:Cambria, serif; color:var(--navy); font-size:17px; }
+  .panel .sub{ font-size:12px; color:var(--ink-soft); margin-bottom:16px; }
+  .panel .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px 14px; }
+  .panel .full{ grid-column:1 / -1; }
+  .panel label{ font-size:10.5px; text-transform:uppercase; letter-spacing:.6px; color:var(--ink-soft); font-weight:700; display:block; margin-bottom:5px; }
+  .panel input, .panel select{
+    width:100%; border:1px solid var(--line); border-radius:3px; padding:8px 10px; font-size:13px; font-family:Calibri, sans-serif;
+  }
+  .panel .actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+  .panel .close-x{ position:absolute; }
+  .panel-head{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .x-btn{ border:none; background:none; font-size:20px; color:var(--ink-soft); cursor:pointer; line-height:1; }
+
+  .toast{
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--navy); color:#fff;
+    padding:11px 20px; border-radius:6px; font-size:13px; box-shadow:0 6px 18px rgba(0,0,0,.3); opacity:0; pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease; z-index:200;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  footer{ padding:14px 28px 30px; font-size:11px; color:var(--ink-soft); text-align:center; }
+
+  @media (max-width:720px){
+    .stats{ margin-left:0; width:100%; justify-content:space-between; }
+    .toolbar{ position:static; }
+    .panel .grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block" style="display:flex; align-items:center; gap:16px;">
+    <img src="data:image/png;base64,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" alt="GlobalData" style="height:34px; width:auto;">
+    <h1 style="margin:0;">Resource Allocation Dashboard</h1>
+  </div>
+  <div class="headbtns">
+    <button class="btn btn-ghost" id="loadRosterBtn">⭱ Load Employee List</button>
+    <button class="btn btn-amber" id="downloadBtn">⬇ Download Allocation Sheet</button>
+  </div>
+  <input type="file" id="rosterFile" accept=".xlsx,.xls,.csv" style="display:none;">
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="alloc">Allocations</button>
+  <button class="tab-btn" data-tab="emplist">Employee List</button>
+  <button class="tab-btn" data-tab="gddp">GDDP Resource Allocation</button>
+</nav>
+
+<!-- ===== ALLOCATIONS TOOLBAR ===== -->
+<div class="toolbar" id="allocToolbar">
+  <div class="field"><label for="monthSelect">Month</label><select id="monthSelect"></select></div>
+  <div class="field"><label for="mgrSelect">Reporting Manager</label><select id="mgrSelect"></select></div>
+  <div class="field"><label for="searchBox">Search employee</label><input type="text" id="searchBox" placeholder="Name or Emp ID…"></div>
+  <button class="btn btn-outline btn-sm" id="addProjectBtn" style="align-self:flex-end;">+ Add Project</button>
+  <button class="btn btn-teal btn-sm" id="addEmployeeBtnAlloc" style="align-self:flex-end;">+ Add Employee</button>
+  <div class="stats">
+    <div class="stat"><div class="num" id="statEmp">0</div><div class="lbl">Employees Shown</div></div>
+    <div class="stat"><div class="num" id="statMgr">0</div><div class="lbl">Managers</div></div>
+    <div class="stat"><div class="num" id="statProj">0</div><div class="lbl">Active Projects</div></div>
+  </div>
+</div>
+
+<!-- ===== EMPLOYEE LIST TOOLBAR ===== -->
+<div class="toolbar" id="elistToolbar" style="display:none;">
+  <div class="field"><label for="elistSearch">Search employee</label><input type="text" id="elistSearch" placeholder="Name or Emp ID…"></div>
+  <div class="field"><label for="elistMgrFilter">Reporting Manager</label><select id="elistMgrFilter"></select></div>
+  <div class="field"><label for="elistTeamFilter">Team</label><select id="elistTeamFilter"></select></div>
+  <div class="field"><label for="elistDesigFilter">Designation</label><select id="elistDesigFilter"></select></div>
+  <button class="btn btn-teal btn-sm" id="addEmployeeBtnList" style="align-self:flex-end;">+ Add Employee</button>
+  <button class="btn btn-outline btn-sm" id="downloadEmployeeListBtn" style="align-self:flex-end;">⬇ Download Excel</button>
+  <div class="stats">
+    <div class="stat"><div class="num" id="elistStatTotal">0</div><div class="lbl">Total Employees</div></div>
+    <div class="stat"><div class="num" id="elistStatNew">0</div><div class="lbl">New Joiners</div></div>
+    <div class="stat"><div class="num" id="elistStatUnassigned">0</div><div class="lbl">Unassigned</div></div>
+  </div>
+</div>
+
+<!-- ===== GDDP RESOURCE ALLOCATION TOOLBAR ===== -->
+<div class="toolbar" id="gddpToolbar" style="display:none;">
+  <div class="field" style="align-self:flex-end;">
+    <button class="btn btn-teal btn-sm" id="gddpEditBtn">✎ Edit</button>
+    <button class="btn btn-amber btn-sm" id="gddpSaveBtn" style="display:none;">💾 Save</button>
+    <button class="btn btn-outline btn-sm" id="gddpCancelBtn" style="display:none;">✕ Cancel</button>
+  </div>
+  <button class="btn btn-outline btn-sm" id="downloadGddpBtn" style="align-self:flex-end;">⬇ Download Excel</button>
+  <div class="stats">
+    <div class="stat"><div class="num" id="gddpStatAlloc">0</div><div class="lbl">Total Allocation (latest month)</div></div>
+    <div class="stat"><div class="num" id="gddpStatAvail">0</div><div class="lbl">Total Available (GDDP)</div></div>
+    <div class="stat"><div class="num" id="gddpStatSurplus">0</div><div class="lbl">Surplus / Shortfall</div></div>
+  </div>
+</div>
+<datalist id="gddpEmpDatalist"></datalist>
+
+<main id="main"></main>
+
+<footer>GD Software internal tool · Percent allocations and the employee list are editable inline · Export reproduces the original monthly workbook layout</footer>
+
+<!-- ===== ADD EMPLOYEE PANEL ===== -->
+<div class="overlay hidden" id="empOverlay">
+  <div class="panel">
+    <div class="panel-head">
+      <div>
+        <h3>Add Employee</h3>
+        <div class="sub">New joiners are added to the current month and flagged as new.</div>
+      </div>
+      <button class="x-btn" id="empPanelClose">×</button>
+    </div>
+    <div class="grid">
+      <div><label>Emp ID</label><input type="text" id="fEmpId" placeholder="e.g. 40999"></div>
+      <div><label>Emp Name</label><input type="text" id="fEmpName" placeholder="Full name"></div>
+      <div><label>Designation</label><input type="text" id="fEmpDesig" placeholder="e.g. Software Engineer"></div>
+      <div><label>Reporting Manager</label><input type="text" id="fEmpMgr" list="mgrList" placeholder="Select or type new"></div>
+      <datalist id="mgrList"></datalist>
+      <div><label>Division</label><input type="text" id="fEmpDiv" placeholder="e.g. Software"></div>
+      <div><label>Team</label><input type="text" id="fEmpTeam" placeholder="e.g. GDDP"></div>
+      <div><label>Date of Joining</label><input type="date" id="fEmpDoj"></div>
+      <div><label>Status</label><input type="text" id="fEmpStatus" value="Active"></div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-outline btn-sm" id="empCancelBtn">Cancel</button>
+      <button class="btn btn-amber btn-sm" id="empSaveBtn">Add Employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ADD PROJECT PANEL ===== -->
+<div class="overlay hidden" id="projOverlay">
+  <div class="panel" style="max-width:420px;">
+    <div class="panel-head">
+      <div>
+        <h3>Add Project</h3>
+        <div class="sub">New projects appear in every employee's allocation dropdown.</div>
+      </div>
+      <button class="x-btn" id="projPanelClose">×</button>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label>Main Project</label>
+      <select id="fProjMain"></select>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label>Sub Project</label>
+      <select id="fProjSub"></select>
+    </div>
+    <div id="fProjOtherWrap" style="display:none; margin-bottom:12px;">
+      <label>Sub Project Name</label>
+      <input type="text" id="fProjOther" placeholder="Type the sub project name">
+    </div>
+    <div class="actions">
+      <button class="btn btn-outline btn-sm" id="projCancelBtn">Cancel</button>
+      <button class="btn btn-amber btn-sm" id="projSaveBtn">Add Project</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const MONTH_DATA = {"projects": ["SI Upgrade to React", "CI - Competitive Intelligence", "Market Intelligence", "LoR 2.0 build", "C360 usage governance monthly", "Automated Customer outreach", "Proactive Alerts and Risk Monitoring", "Structured Signals from Gong", "CS Agent Phase 2", "Navigation & Findability:", "Search & Data Utility", "Consistency & Pattern Hygiene", "WCAG 2.2 AA international accessibility for ICs", "Platform rebuild", "Salesforce App exchange", "AI Hub, Agentic AVA , CS agent and Others", "SAM (2.0)", "Agentic AVA on STI", "Short form reports(Frontend and content)", "LOR", "Keystone- Automation", "Keystone- MCP/DDS API", "Sales Intelligence - Consumer", "Sales Intelligence  - Industrials", "Sales Intelligence  - Central", "Sales Intelligence – Technology", "Insights & Advisory IC – STI", "Insights & Advisory IC – Celent", "Connected Platform + Brand Views", "Modularization & Consolidation", "Product Lifecycle Database (PLDB)", "Ai Palette GD Data Integration on AiP : Ai Palette Side.", "Innovation Solution", "Consumer Country category AI report", "PLDB Data Crawling Phase 5", "Linkup Transition", "Celent - Hosting migration", "Stylus SSO", "Stylus AI Replacement", "Linkup data migration to IC", "Tech IC Modularization", "Improvements for Industrial ICs (Backlog Requests)", "IC Rebrand (IC & Alerts)", "DDS Projects/ requests", "Media IC – Metaprofile datasets", "Unified Database", "Unified Reader Profile", "Carroll Technologies, Scottland Microsite, Allemia Microsite", "GMS Improvements", "Report Store Improvements", "Data analytics for whole media sites, Commercial/Sales requests", "Agile Media development/Platform tasks", "Carroll Technologies, Scottland Microsite, Allemia Microsite", "BTMI Maintenance and Enhancements", "MBI- The knowledge Online and", "Screen Global Production", "Media maintenance", "Vulnerability and Security Issues with all the  websites and  performance improvements, Bot protection", "MEED Support", "Broadcast Intel, ALF Insights", "Report Store Improvements", "TS Lombard - Enhancements/ Maintenance", "Events registrations and marketing sites -", "IHTF Asia Forum events enhancements", "Linkup", "Celent", "AiPalette", "Industrials", "Consumer", "Tech", "Hosting Support", "Tableau", "Pentaho", "Datalake", "IBM Planing Analytics", "MSBI Canadean", "LMC - Agri & Auto( Power Query Work)", "GD Explorer", "Jobs", "Fillings", "Global Ads", "News & Tenders", "AI Playground", "Consumer CMS", "C360", "CMS Projects", "Market Data Authoring tool", "Social Media Analytics", "Patents", "AF", "AMS", "Salesforce", "DBA Activites", "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)"], "months": {"June 2026": {"employees": [{"empid": 30025, "name": "Anitha Konduru", "designation": "Senior Module Lead", "manager": "Srinivas Aleti", "allocations": {"AMS": 100}, "doj": "2008-10-29", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 30082, "name": "Shravan Kumar Ganji", "designation": "Team Lead", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2012-09-24", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 40654, "name": "Ganjikunta Raja", "designation": "Web Designer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 10, "Industrials": 30, "Consumer": 40}, "doj": "2012-09-10", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 40667, "name": "Bhulakshmi Nallani", "designation": "Development Manager", "manager": "Sudheer Akuthota", "allocations": {"Sales Intelligence – Technology": 25, "Insights & Advisory IC – STI": 20, "Linkup data migration to IC": 10, "Tech": 35, "Jobs": 5, "Patents": 5}, "doj": "2012-09-28", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 40770, "name": "Satheesh Arram", "designation": "Senior Team Lead", "manager": "Srinivas Aleti", "allocations": {"Product Lifecycle Database (PLDB)": 50, "Consumer": 50}, "doj": "2010-04-21", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 40771, "name": "Bolleni Laxmikantham", "designation": "Development Manager", "manager": "Srinivas Aleti", "allocations": {"CI - Competitive Intelligence": 50, "Connected Platform + Brand Views": 50}, "doj": "2010-08-16", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 40772, "name": "Lakshmi Prasanna Uppala", "designation": "Module Lead", "manager": "Srinivas Aleti", "allocations": {"Connected Platform + Brand Views": 100}, "doj": "2010-09-13", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 40775, "name": "Vidyasagar Channagiri", "designation": "Development Manager", "manager": "Srinivas Aleti", "allocations": {"Hosting Support": 100}, "doj": "2013-08-20", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54555, "name": "Peddinti Sree Priyanka", "designation": "Senior Module Lead", "manager": "Srinivas Aleti", "allocations": {"CI - Competitive Intelligence": 100}, "doj": "2017-08-07", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 55051, "name": "Sugali Vijaya Naik", "designation": "Module Lead", "manager": "Srinivas Aleti", "allocations": {"Connected Platform + Brand Views": 100}, "doj": "2018-08-06", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 55131, "name": "Sheik Subhan Bhasha", "designation": "Module Lead", "manager": "Srinivas Aleti", "allocations": {"CI - Competitive Intelligence": 50, "Consumer Country category AI report": 50}, "doj": "2018-10-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 55467, "name": "Chelluru Praveen Kumar", "designation": "Senior Module Lead", "manager": "Srinivas Aleti", "allocations": {"SAM (2.0)": 100}, "doj": "2019-05-01", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58297, "name": "Kasthuroju Anil", "designation": "Senior Software Engineer", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2022-07-13", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58308, "name": "K Manasa Reddy", "designation": "Senior Software Engineer", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 100}, "doj": "2022-07-20", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58478, "name": "Vadla Lakshmanchary", "designation": "Software Engineer", "manager": "Srinivas Aleti", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2022-09-14", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58567, "name": "Jagarapu Durgaprasad", "designation": "Software Engineer", "manager": "Srinivas Aleti", "allocations": {"Product Lifecycle Database (PLDB)": 50, "Consumer": 50}, "doj": "2022-10-12", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58571, "name": "Saragada Shiridi Sai Teja", "designation": "Module Lead", "manager": "Sudheer Akuthota", "allocations": {"Keystone- MCP/DDS API": 30, "Sales Intelligence – Technology": 10, "Linkup data migration to IC": 20, "Tech": 20, "Jobs": 10, "Patents": 10}, "doj": "2022-10-17", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58939, "name": "Shubham Suresh Bhoyar", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Short form reports(Frontend and content)": 75, "Consumer": 25}, "doj": "2023-08-28", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58949, "name": "Neeraj Kumar Rajput", "designation": "Practice Head – Data Science and Engineering", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2023-09-11", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59087, "name": "Vimala Koduru", "designation": "Senior Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2024-02-26", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59156, "name": "Ummadi Abhilashkumar Reddy", "designation": "Software Engineer", "manager": "Sudheer Akuthota", "allocations": {"Insights & Advisory IC – Celent": 7, "Tech": 93}, "doj": "2024-05-06", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59168, "name": "Tangirala Ananda Datta Sai Phanindra", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2024-05-15", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 30004, "name": "Sanjay Kumar", "designation": "Associate Development Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Improvements for Industrial ICs (Backlog Requests)": 50, "DDS Projects/ requests": 10, "Industrials": 40}, "doj": "2007-01-02", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59414, "name": "Duvvada Roja Ramani", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2024-09-23", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54107, "name": "Hima Bindu Kilaru", "designation": "Team Lead", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 5, "AI Playground": 5, "Consumer CMS": 5, "Market Data Authoring tool": 5, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 80}, "doj": "2014-09-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 80535, "name": "Sreenivasa Reddy Thotli", "designation": "Development Manager", "manager": "Laxmunaidu Maradana", "allocations": {"Automated Customer outreach": 10, "Proactive Alerts and Risk Monitoring": 10, "Structured Signals from Gong": 10, "AI Playground": 10, "Consumer CMS": 10, "CMS Projects": 15, "Market Data Authoring tool": 5, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 30}, "doj": "2012-09-05", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 54101, "name": "Rama Satya Prasad Dasari", "designation": "DB Manager", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 5, "Jobs": 5, "CMS Projects": 5, "Market Data Authoring tool": 5, "Patents": 50, "DBA Activites": 15, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 15}, "doj": "2010-05-03", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54104, "name": "Poli Naidu Yamalapalli", "designation": "Lead DBA", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 50, "Jobs": 5, "CMS Projects": 5, "Market Data Authoring tool": 5, "DBA Activites": 15, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 20}, "doj": "2013-04-29", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54569, "name": "Majjiga Veera Nagi Reddy", "designation": "Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 100}, "doj": "2017-08-14", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54615, "name": "Sathyavathi Ravipati", "designation": "Module Lead", "manager": "Laxmunaidu Maradana", "allocations": {"C360": 90, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 10}, "doj": "2017-09-04", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 57048, "name": "Kaithepalli Siva Prasad", "designation": "Database Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 50, "Jobs": 30, "News & Tenders": 10, "Social Media Analytics": 10}, "doj": "2021-05-10", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 57496, "name": "Dagani Venkatarao", "designation": "Senior Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"C360 usage governance monthly": 40, "AI Playground": 40, "C360": 20}, "doj": "2021-10-11", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58462, "name": "Chintala Chakrapani", "designation": "Database Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Patents": 10, "DMS, Projects, Mining, HNWI, CLB Offline reports, Backend Tool Maintanance - (CDMS, Projects, Mining, HNWI, CLB Offline reports)": 90}, "doj": "2022-09-05", "division": "Software", "team": "Non GDDP", "status": " "}, {"empid": 54098, "name": "Pandiri Raghavender", "designation": "Senior Team Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2009-09-30", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54110, "name": "Balakrishna Goshika", "designation": "Senior Software engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2015-06-25", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54645, "name": "Shaik Azaruddin", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Media maintenance": 10, "Linkup": 90}, "doj": "2017-10-03", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 54739, "name": "Paleti Samatha", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2017-11-20", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 55085, "name": "Matta Satyanarayana", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2018-09-03", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56613, "name": "Iragala Mallikarjuna Reddy", "designation": "Senior Test Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Carroll Technologies, Scottland Microsite, Allemia Microsite": 10, "GMS Improvements": 50, "Report Store Improvements": 10, "Media maintenance": 20}, "doj": "2020-11-16", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56728, "name": "Rama Naidu", "designation": "Test Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Carroll Technologies, Scottland Microsite, Allemia Microsite": 20, "Report Store Improvements": 20, "BTMI Maintenance and Enhancements": 20, "Media maintenance": 20, "Events registrations and marketing sites -": 20}, "doj": "2013-12-16", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56729, "name": "Mamidi Manoj Kumar", "designation": "Associate Development Manager", "manager": "Kollabathula Vinod Kumar", "allocations": {"Sales Intelligence  - Industrials": 50, "Media maintenance": 50}, "doj": "2014-01-09", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56731, "name": "Parsetty Ravinder", "designation": "Development Manager", "manager": "Kollabathula Vinod Kumar", "allocations": {"GMS Improvements": 20, "TS Lombard - Enhancements/ Maintenance": 10, "Events registrations and marketing sites -": 20, "Linkup": 50}, "doj": "2017-08-14", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56736, "name": "Vittala. Srimanarayana Murthy", "designation": "Practice Head - Software Group Media", "manager": "Kollabathula Vinod Kumar", "allocations": {"Carroll Technologies, Scottland Microsite, Allemia Microsite": 10, "GMS Improvements": 20, "Report Store Improvements": 10, "Media maintenance": 10, "Linkup": 10, "Celent": 40}, "doj": "2017-11-13", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56927, "name": "Kalathuru Munilakshmi", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Media maintenance": 100}, "doj": "2021-03-29", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 56994, "name": "Amarender Reddy", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Media maintenance": 50, "Linkup": 50}, "doj": "2021-04-19", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 57203, "name": "Shaik Mohammad Shaheer", "designation": "Senior Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"GMS Improvements": 100}, "doj": "2021-07-05", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 57354, "name": "Somu Anand", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"GMS Improvements": 20, "Data analytics for whole media sites, Commercial/Sales requests": 30, "Linkup": 50}, "doj": "2021-08-23", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 57615, "name": "Sannapareddy Sudhakar Reddy", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Media maintenance": 40, "Celent": 40, "AiPalette": 20}, "doj": "2021-11-08", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 57885, "name": "Damisetty Venkata Sandeep", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Events registrations and marketing sites -": 50, "Linkup": 50}, "doj": "2022-02-21", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 58054, "name": "Rahul Kumar Singh", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Events registrations and marketing sites -": 50, "Linkup": 50}, "doj": "2022-04-25", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 58068, "name": "Goudu Srinivas", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Report Store Improvements": 20, "Celent": 80}, "doj": "2022-05-02", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 58171, "name": "Noor Basha Meharunnisa Shaik", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Stylus AI Replacement": 80, "Media maintenance": 10, "Linkup": 10}, "doj": "2022-05-30", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 58358, "name": "Deepak Saini", "designation": "Module Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"GMS Improvements": 80, "Celent": 20}, "doj": "2022-08-08", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 59051, "name": "A Ravi Teja", "designation": "Full Stack Developer", "manager": "Ajay Chaudhary", "allocations": {"GMS Improvements": 40, "MBI- The knowledge Online and": 10, "Linkup": 50}, "doj": "2023-12-04", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 59060, "name": "Abhishek Das", "designation": "Frontend Developer", "manager": "Kollabathula Vinod Kumar", "allocations": {"GMS Improvements": 80, "Celent": 20}, "doj": "2023-12-18", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 59067, "name": "Puchala Anitha", "designation": "Senior Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"MBI- The knowledge Online and": 100}, "doj": "2023-12-18", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 41031, "name": "Srinivas Aleti", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 10, "SAM (2.0)": 10, "Agentic AVA on STI": 10, "Short form reports(Frontend and content)": 5, "LOR": 5, "Keystone- MCP/DDS API": 5, "Sales Intelligence - Consumer": 10, "Connected Platform + Brand Views": 10, "Product Lifecycle Database (PLDB)": 10, "Innovation Solution": 10, "Consumer Country category AI report": 10, "Stylus AI Replacement": 5}, "doj": "2012-09-03", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 54103, "name": "Laxmunaidu Maradana", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"LOR": 5, "Connected Platform + Brand Views": 5, "Product Lifecycle Database (PLDB)": 5, "Linkup Transition": 30, "Linkup data migration to IC": 10, "Jobs": 5, "AI Playground": 5, "C360": 10, "CMS Projects": 5, "Social Media Analytics": 5, "Patents": 5, "DBA Activites": 10}, "doj": "2012-09-03", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56727, "name": "Kollabathula Vinod Kumar", "designation": "Practice Head", "manager": "Harinatha Reddy Gorla", "allocations": {"Ai Palette GD Data Integration on AiP : Ai Palette Side.": 10, "PLDB Data Crawling Phase 5": 10, "Agile Media development/Platform tasks": 20, "BTMI Maintenance and Enhancements": 10, "Media maintenance": 10, "TS Lombard - Enhancements/ Maintenance": 10, "Events registrations and marketing sites -": 10, "IHTF Asia Forum events enhancements": 10, "Linkup": 10}, "doj": "2008-02-18", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 80382, "name": "Revuri Bharadwaj Venkata Sai", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"SI Upgrade to React": 15, "CI - Competitive Intelligence": 10, "Market Intelligence": 5, "Short form reports(Frontend and content)": 5, "Keystone- MCP/DDS API": 10, "Sales Intelligence  - Industrials": 10, "Improvements for Industrial ICs (Backlog Requests)": 15, "DDS Projects/ requests": 20, "Industrials": 10}, "doj": "2008-08-21", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59454, "name": "Vamsi Krishna", "designation": "DevOps Engineer", "manager": "Ajay Chaudhary", "allocations": {"Unified Reader Profile": 10, "Media maintenance": 50, "Linkup": 40}, "doj": "2025-01-21", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 54099, "name": "Ganta Srilakshmi", "designation": "Senior Team Lead", "manager": "Laxmunaidu Maradana", "allocations": {"Fillings": 100}, "doj": "2009-04-13", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54111, "name": "G Revan Kumar", "designation": "Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"News & Tenders": 100}, "doj": "2015-07-06", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54622, "name": "Karri Venkata Satya Nagendra Reddy", "designation": "Associate Development Manager", "manager": "Doddipatla Suribabu", "allocations": {"Product Lifecycle Database (PLDB)": 10, "Linkup Transition": 60, "Linkup": 10, "Datalake": 10, "MSBI Canadean": 10}, "doj": "2017-09-11", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 55828, "name": "Papanaboina Venkata Prasad", "designation": "Senior Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"Global Ads": 100}, "doj": "2019-08-26", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 55863, "name": "Simma Raveendra Babu", "designation": "Associate Development Manager", "manager": "Doddipatla Suribabu", "allocations": {"Sales Intelligence - Consumer": 10, "Product Lifecycle Database (PLDB)": 20, "Datalake": 10, "MSBI Canadean": 10, "LMC - Agri & Auto( Power Query Work)": 50}, "doj": "2019-09-04", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56253, "name": "Kalva Rathnakar Reddy", "designation": "Senior Team Lead", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup": 50, "Global Ads": 50}, "doj": "2020-02-24", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56319, "name": "Doddipatla Suribabu", "designation": "Senior Development Manager", "manager": "Srinivas Aleti", "allocations": {"Sales Intelligence - Consumer": 10, "Product Lifecycle Database (PLDB)": 10, "Linkup Transition": 10, "Pentaho": 50, "Datalake": 10, "MSBI Canadean": 10}, "doj": "2020-03-18", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56906, "name": "Nukala Srinivas", "designation": "Associate Development Manager", "manager": "Srinivas Aleti", "allocations": {"Linkup Transition": 30, "Celent": 30, "AiPalette": 10, "Tableau": 30}, "doj": "2021-03-22", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 57272, "name": "BADUGU SRIKANTH", "designation": "Senior Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 100}, "doj": "2021-08-02", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 57525, "name": "SAPPIDI AVINASH", "designation": "Module Lead", "manager": "Srinivas Aleti", "allocations": {"Linkup Transition": 30, "Celent": 30, "AiPalette": 10, "Tableau": 30}, "doj": "2021-10-18", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 57577, "name": "Kodavalla Naga Raju", "designation": "Senior Database Developer", "manager": "Doddipatla Suribabu", "allocations": {"Linkup Transition": 70, "Linkup": 10, "Datalake": 10, "MSBI Canadean": 10}, "doj": "2021-11-01", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 57692, "name": "N Venkatashiva Sai", "designation": "Senior Developer – Tableau", "manager": "Srinivas Aleti", "allocations": {"Linkup Transition": 30, "Tableau": 70}, "doj": "2021-12-06", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58038, "name": "Durgem Pudi Vara Lakshmi", "designation": "Senior Database Developer", "manager": "Doddipatla Suribabu", "allocations": {"Sales Intelligence - Consumer": 40, "Product Lifecycle Database (PLDB)": 20, "Datalake": 20, "MSBI Canadean": 20}, "doj": "2022-04-18", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58230, "name": "Emmadi Santhosh", "designation": "Python Development Manager", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 50, "Fillings": 20, "Global Ads": 10, "News & Tenders": 20}, "doj": "2022-06-27", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59059, "name": "Keerthi Kishore", "designation": "Python Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 100}, "doj": "2023-12-18", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 56530, "name": "Pentaparthi Chandrashekar", "designation": "Salesforce Module Lead", "manager": "Ravikumar Parvathi", "allocations": {"Salesforce": 100}, "doj": "2020-09-14", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58367, "name": "Malasani Raviteja", "designation": "Senior Salesforce Developer", "manager": "Ravikumar Parvathi", "allocations": {"Salesforce": 100}, "doj": "2022-08-08", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 58384, "name": "Ithamraju Venkatesh", "designation": "Salesforce Developer", "manager": "Ravikumar Parvathi", "allocations": {"Salesforce": 100}, "doj": "2022-08-17", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 56993, "name": "P.Pavan Suta", "designation": "Business Analyst Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Agentic AVA on STI": 10, "Insights & Advisory IC – STI": 20, "Insights & Advisory IC – Celent": 50, "Stylus AI Replacement": 20}, "doj": "2021-04-19", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 80539, "name": "Sunil Kumar Bhimireddy", "designation": "BA Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Insights & Advisory IC – Celent": 70, "Linkup Transition": 30}, "doj": "2012-09-10", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59511, "name": "Nanduri Raghava Sai Nitish", "designation": "Project Analyst", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Insights & Advisory IC – Celent": 10, "Linkup Transition": 40, "Linkup data migration to IC": 50}, "doj": "2025-04-07", "division": "Software", "team": "Non GDDP", "status": " "}, {"empid": 40666, "name": "Bala Sankar Kata", "designation": "SQA Lead - Testing", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 10, "Insights & Advisory IC – STI": 10, "Modularization & Consolidation": 10, "Product Lifecycle Database (PLDB)": 10, "Consumer": 20, "AMS": 20}, "doj": "2012-09-28", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 40773, "name": "Katta Vishnu Prasad", "designation": "Manager SQA", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 10, "Insights & Advisory IC – STI": 10, "Insights & Advisory IC – Celent": 10, "Modularization & Consolidation": 10, "Industrials": 20, "Consumer": 20}, "doj": "2011-05-17", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 54986, "name": "Srikanta Pavan Kumar", "designation": "Module Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Short form reports(Frontend and content)": 80, "Sales Intelligence  - Central": 10, "DDS Projects/ requests": 10}, "doj": "2018-05-07", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 56224, "name": "Godishala Sudheer", "designation": "Senior Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 90, "Industrials": 10}, "doj": "2020-02-10", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58475, "name": "Katakam Rakeshkumarreddy", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"DDS Projects/ requests": 100}, "doj": "2022-09-14", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58477, "name": "Peethani Raviteja", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 60, "Short form reports(Frontend and content)": 25, "Industrials": 15}, "doj": "2022-09-14", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 58566, "name": "Devaragatla Lakshmi Kumari", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Improvements for Industrial ICs (Backlog Requests)": 70, "Industrials": 30}, "doj": "2022-10-12", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 80383, "name": "Pichikala Veera Venkata Satyanarayana", "designation": "Development Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 65, "Short form reports(Frontend and content)": 5, "Sales Intelligence  - Central": 10, "Improvements for Industrial ICs (Backlog Requests)": 15, "Industrials": 5}, "doj": "2008-08-25", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 80385, "name": "Jallepalli Muralidhar", "designation": "Development Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Salesforce App exchange": 50, "DDS Projects/ requests": 40, "Industrials": 10}, "doj": "2008-09-24", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 80404, "name": "Mohammed Khaled Ahmed", "designation": "Development Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 60, "AI Hub, Agentic AVA , CS agent and Others": 5, "Short form reports(Frontend and content)": 10, "Keystone- MCP/DDS API": 20, "Industrials": 5}, "doj": "2011-07-18", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 80405, "name": "Anil Kumar Ambati", "designation": "SQA Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 10, "AI Hub, Agentic AVA , CS agent and Others": 10, "SAM (2.0)": 10, "Insights & Advisory IC – STI": 20, "Insights & Advisory IC – Celent": 20, "Industrials": 30}, "doj": "2011-08-01", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 81480, "name": "Gavini Srinivasu", "designation": "Module Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 20, "Short form reports(Frontend and content)": 80}, "doj": "2017-01-25", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 41094, "name": "L Dareswari Rayudu", "designation": "Team Lead", "manager": "Sudheer Akuthota", "allocations": {"Linkup data migration to IC": 15, "Tech": 85}, "doj": "2015-08-12", "division": "Software", "team": "Non GDDP", "status": " "}, {"empid": 59243, "name": "ASHA SHAIK", "designation": "Module Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 50, "Improvements for Industrial ICs (Backlog Requests)": 25, "Industrials": 25}, "doj": "2024-04-01", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59318, "name": "Sandhya Pagilla", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 25, "Short form reports(Frontend and content)": 75}, "doj": "2024-06-01", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59432, "name": "Eduboina Nagaraju", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 50, "Short form reports(Frontend and content)": 50}, "doj": "2024-06-01", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 50181, "name": "Ravikumar Parvathi", "designation": "Salesforce Manager", "manager": "Harinatha Reddy Gorla", "allocations": {"Salesforce App exchange": 50, "Salesforce": 50}, "doj": "2007-09-26", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59280, "name": "Pavan Poshala", "designation": "Senior Database Developer", "manager": "Doddipatla Suribabu", "allocations": {"Sales Intelligence - Consumer": 10, "Datalake": 20, "MSBI Canadean": 20, "GD Explorer": 50}, "doj": "", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 30005, "name": "Rajasekhar Rao Ravi", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"Jobs": 50, "Fillings": 20, "Global Ads": 10, "News & Tenders": 20}, "doj": "2007-01-10", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": "UK001", "name": "Assad Imran", "designation": "Software Module Lead", "manager": "Harinatha Reddy Gorla", "allocations": {"Consumer": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": 58910, "name": "Thota Prameela Rani", "designation": "Software Test Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 10, "Insights & Advisory IC – Celent": 20, "Industrials": 50}, "doj": "2023-08-16", "division": "Software", "team": "Non GDDP", "status": " "}, {"empid": "BK001", "name": "Byte Kehachindawat", "designation": "Web Engineer", "manager": "Ben Asher (LMC)", "allocations": {"LMC - Agri & Auto( Power Query Work)": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": "BK002", "name": "Fon - Nathkrita Samranbamrung", "designation": "BI Development Manager", "manager": "Ben Asher (LMC)", "allocations": {"LMC - Agri & Auto( Power Query Work)": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": "BK003", "name": "Nook - Rujaporn Kratai", "designation": "BI Developer", "manager": "Ben Asher (LMC)", "allocations": {"LMC - Agri & Auto( Power Query Work)": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": "UK002", "name": "Fa - Pariyakorn Pratoomtree", "designation": "Forecasting Systems Manager", "manager": "Ben Asher (LMC)", "allocations": {"LMC - Agri & Auto( Power Query Work)": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": "BK005", "name": "Non- Satanan Wasaprasert", "designation": "Auto Database Manager", "manager": "Ben Asher (LMC)", "allocations": {"LMC - Agri & Auto( Power Query Work)": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": "UK003", "name": "Tadas Bute", "designation": "PHP Tech Lead", "manager": "Nick (TSL)", "allocations": {"TS Lombard - Enhancements/ Maintenance": 100}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": 53741, "name": "Harinatha Reddy Gorla", "designation": "CTO", "manager": "Mike Danson", "allocations": {}, "doj": "", "division": "Software", "team": "CTO", "status": "Active"}, {"empid": 59445, "name": "Surendrareddy\nChennareddy", "designation": "Team Lead", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 50, "Jobs": 50}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59441, "name": "Bhupathi Vinay Kumar", "designation": "Sr. DB Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 90, "Jobs": 10}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59448, "name": "Nelanuthala Vignesh\nKishan Sarma", "designation": "Senior\nSoftware\nEngineer", "manager": "Laxmunaidu Maradana", "allocations": {"Linkup Transition": 50, "Jobs": 50}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59447, "name": "P.Rajasekhar", "designation": "Data scraping  Lead", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 57821, "name": "DERANGULA JAGADEESH", "designation": "SSE", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59456, "name": "Piridi\nSankar\nRao", "designation": "SSE", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59444, "name": "Sadara\nKaruna\nKumari", "designation": "SSE", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59442, "name": "Vasam\nMeghana", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59443, "name": "Abbadasari\nNaveena", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59464, "name": "Menni Tanuj Venkat", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59462, "name": "GOLLA SAIRAM", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59463, "name": "NARISHETTI THARUN", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59465, "name": "Dasari Syam Sundar", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59467, "name": "kokatam Sai Priya", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59504, "name": "M Venkat Pritham", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59505, "name": "Kota Rishika", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59535, "name": "Prakruth Kola Kumar", "designation": "DevOps Engineer", "manager": "Ajay Chaudhary", "allocations": {"Linkup": 30, "Celent": 40, "AiPalette": 30}, "doj": "", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 59556, "name": "Sudheer Akuthota", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"Keystone- MCP/DDS API": 10, "Sales Intelligence – Technology": 50, "Linkup data migration to IC": 10, "Tech": 25, "Jobs": 5}, "doj": "", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59568, "name": "Koneti Sushmasree", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Linkup data migration to IC": 100}, "doj": "", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59569, "name": "Arathi Soundharya", "designation": "Senior Python Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59579, "name": "Prayaga Atchyut Pavan", "designation": "Python Lead", "manager": "Laxmunaidu Maradana", "allocations": {"Fillings": 100}, "doj": "2025-07-17", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59589, "name": "Dareddy Bhaskar Reddy", "designation": "Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "2025-07-28", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59602, "name": "Ajay Chaudhary", "designation": "Director-Software", "manager": "Harinatha Reddy Gorla", "allocations": {"Unified Database": 10, "Unified Reader Profile": 20, "GMS Improvements": 20, "MBI- The knowledge Online and": 10, "Screen Global Production": 10, "Vulnerability and Security Issues with all the  websites and  performance improvements, Bot protection": 10, "Linkup": 20}, "doj": "2025-08-01", "division": "Software", "team": "Media", "status": "Active"}, {"empid": 59631, "name": "Bhukya Rajendra Prasad", "designation": "Senior Software Engineer", "manager": "Srinivas Aleti", "allocations": {"Stylus AI Replacement": 100}, "doj": "2025-08-25", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59620, "name": "Oruganti Rahul", "designation": "Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"Product Lifecycle Database (PLDB)": 100}, "doj": "2025-08-18", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59617, "name": "Gundeti Sunil", "designation": "Software Engineer", "manager": "Kollabathula Vinod Kumar", "allocations": {"MBI- The knowledge Online and": 100}, "doj": "2025-08-13", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": "59633 ", "name": "BANDLA HARIKRISHNA", "designation": "Senior Software Engineer", "manager": null, "allocations": {"Stylus AI Replacement": 100}, "doj": "", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59641, "name": "Nitin Mahendra Putta", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"LoR 2.0 build": 25, "LOR": 25, "Consumer": 50}, "doj": "", "division": "", "team": "Non GDDP", "status": "Active"}, {"empid": 59649, "name": "Sangepu Thirupathilaxmi", "designation": "Python Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59650, "name": "Lohitha Kolukula", "designation": "Python Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59651, "name": "Mylaram Nandini", "designation": "Python Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59652, "name": "Sruthi Padala", "designation": "Python Junior Engineer", "manager": "Raja Sekhar Rao", "allocations": {"Jobs": 100}, "doj": "", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59653, "name": "Aisha Ruman Imran Shaikh", "designation": "Software Test Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 30, "SAM (2.0)": 20, "Product Lifecycle Database (PLDB)": 10, "Industrials": 40}, "doj": "", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59656, "name": "Bhanu Kiran Mandava", "designation": "Team Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"SI Upgrade to React": 85, "Keystone- MCP/DDS API": 15}, "doj": "2025-10-06", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59672, "name": "Vivek Kumar", "designation": "Software Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"DDS Projects/ requests": 100}, "doj": "2025-10-27", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59654, "name": "Bhavani Shankar Goalla", "designation": "Team Lead", "manager": "Doddipatla Suribabu", "allocations": {"IBM Planing Analytics": 100}, "doj": "2025-09-29", "division": "Team Lead", "team": "Non GDDP", "status": "Active"}, {"empid": "59636 ", "name": "Dwarampudi Surendra Reddy", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"CS Agent Phase 2": 100}, "doj": "", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59673, "name": "Palavalasa Venkata Satish", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "Product Lifecycle Database (PLDB)": 50}, "doj": "2025-11-10", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59682, "name": "Gadiraju Venkata Naga Pavan Teja Tiwari", "designation": "Senior Data Scientist", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "2025-11-17", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59684, "name": "Arindam Bhattacharyya", "designation": "Team Lead", "manager": "Kollabathula Vinod Kumar", "allocations": {"Linkup Transition": 100}, "doj": "2025-11-24", "division": "Software", "team": "LinkUp", "status": "Active"}, {"empid": 59695, "name": "VEGI CHAYA ANJULA", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Keystone- Automation": 100}, "doj": "2025-12-15", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59693, "name": "Nagendra Uppalapati", "designation": "Senior Software Engineer", "manager": "Srinivas Aleti", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 100}, "doj": "2025-12-15", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59697, "name": "Shivendra Mishra", "designation": "Senior Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Keystone- Automation": 100}, "doj": "2025-12-22", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59705, "name": "Dantam Mani Teja", "designation": "Senior Software Engineer", "manager": "Srinivas Aleti", "allocations": {"SAM (2.0)": 100}, "doj": "2025-12-19", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59706, "name": "Mallipeddi Jaswanth", "designation": "Senior Software Engineer", "manager": "Sudheer Akuthota", "allocations": {"Sales Intelligence – Technology": 100}, "doj": "2025-12-19", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59712, "name": "KANALA ADINARAYANA", "designation": "Tableau Developer", "manager": "Srinivas Aleti", "allocations": {"Tableau": 100}, "doj": "2026-02-09", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59730, "name": "Banka Vamsi", "designation": "Python Module lead", "manager": "Laxmunaidu Maradana", "allocations": {"Jobs": 20, "Fillings": 20, "Global Ads": 40, "News & Tenders": 20}, "doj": "2026-02-23", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59760, "name": "Ponugoti Harivardhan Rao", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"SAM (2.0)": 75, "Consumer": 25}, "doj": "2026-03-09", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59789, "name": "Pramod Kumar Sharma", "designation": "Practice Head – Data Science", "manager": "Srinivas Aleti", "allocations": {"Keystone- Automation": 100}, "doj": "2026-03-30", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59785, "name": "Haritha Rajagopal", "designation": "Sr QA Engineer", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 20, "Stylus AI Replacement": 20, "Patents": 40}, "doj": "2026-03-30", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59795, "name": "Dhamodharan S", "designation": "Data Scientist", "manager": "Srinivas Aleti", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-06", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59797, "name": "Lakshminarayana Jasti", "designation": "Team Lead", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Short form reports(Frontend and content)": 100}, "doj": "2026-04-13", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59803, "name": "Padidepu Thirupathi Rao", "designation": "Senior Software Engineer", "manager": "Laxmunaidu Maradana", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-20", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59804, "name": "Sri Sainath Reddy Karri", "designation": "Senior Data Developer", "manager": "Srinivas Aleti", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-20", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59806, "name": "Josphine Chriistina", "designation": "Project Manager", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-20", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59805, "name": "Tulsi Pandey", "designation": "Project Analyst", "manager": "Revuri Bharadwaj Venkata Sai", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-20", "division": "Software", "team": "Non GDDP", "status": " "}, {"empid": 59809, "name": "Aryasomayajula Venkatesh", "designation": "Python Developer", "manager": "Laxmunaidu Maradana", "allocations": {"Keystone- Automation": 100}, "doj": "2026-04-27", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59822, "name": "AKASAPU HEMANTH KUMAR", "designation": "Software Engineer", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-04", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59829, "name": "Powar Sunil Kumar", "designation": "Software Engineer", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-04", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59842, "name": "Patruni Saikrishna", "designation": "Software Engineer", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-10", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59859, "name": "Sibasish Mohapatra", "designation": "Senior Software Engineer", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-18", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59858, "name": "Ankathi Prethender Sandy", "designation": "Software Engineer", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-18", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59868, "name": "Adesh Kumar", "designation": "Team Lead", "manager": null, "allocations": {"Keystone- Automation": 100}, "doj": "2026-05-25", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": null, "name": "Jake Tang", "designation": "Senior Technical Lead", "manager": "Becky Zahner", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 20, "SAM (2.0)": 20, "Insights & Advisory IC – STI": 30, "Insights & Advisory IC – Celent": 30}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": null, "name": "Landry Karege", "designation": "Senior UI", "manager": "Becky Zahner", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 50, "SAM (2.0)": 50}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": null, "name": "Sarika Guduru", "designation": "Project Manager", "manager": "Bina Patel", "allocations": {"Connected Platform + Brand Views": 50, "Product Lifecycle Database (PLDB)": 50}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": null, "name": "Nick Donnelly", "designation": "Project Manager", "manager": "Bina Patel", "allocations": {"Insights & Advisory IC – STI": 10, "Insights & Advisory IC – Celent": 90}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": null, "name": "Becky Zahner", "designation": "Head of Web Design", "manager": "Bina Patel", "allocations": {"AI Hub, Agentic AVA , CS agent and Others": 40, "SAM (2.0)": 30, "Product Lifecycle Database (PLDB)": 30}, "doj": "", "division": "Software", "team": "Outside India", "status": "Active"}, {"empid": 55501, "name": "Sudeep Shouche", "designation": "Director- Product Innovative", "manager": "Rahul Bhatia", "allocations": {"SAM (2.0)": 50, "Agentic AVA on STI": 50}, "doj": "", "division": "", "team": "", "status": "Active"}, {"empid": 56325, "name": "Premraj Narkhede", "designation": "Director-Data Analytics", "manager": "Rahul Bhatia", "allocations": {"SAM (2.0)": 50, "Agentic AVA on STI": 50}, "doj": "", "division": "", "team": "", "status": "Active"}, {"empid": 56684, "name": "Shravan Kumar Reddy Gouny", "designation": "Product Manager", "manager": "Rajeev Gupta", "allocations": {"Agentic AVA on STI": 100}, "doj": "", "division": "", "team": "", "status": "Active"}, {"empid": 59870, "name": "Sravan Sanam", "designation": "Data Scientist", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-01", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59881, "name": "Bhanu dixit", "designation": "Practice Head –Python", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-08", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59910, "name": "Suresh Uppalanchi", "designation": "Senior DevOps Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-08", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59912, "name": "Mankala Soumya", "designation": "Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-08", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59891, "name": "Errum Santhosh", "designation": "Sr QA Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-08", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59918, "name": "Yashwanth Reddy Maddula", "designation": "Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-15", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59925, "name": "Saurabh Kumar Srivastava", "designation": "Senior Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-15", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59924, "name": "Koteswara Rao Madikanti", "designation": "Senior DevOps Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-15", "division": "Software", "team": "Non GDDP", "status": "Active"}, {"empid": 59930, "name": "Shrikant Ganesh Gullapalli", "designation": "Senior Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59927, "name": "VIKASH VISHWAKARMA", "designation": "Senior Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59928, "name": "Ganganapalli Preethi Priscilla", "designation": "Senior Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59929, "name": "Ambati Sahithi", "designation": "Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-06-22", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59939, "name": "Komuravelli Mani Santhoshi Nymisha", "designation": "Senior Software Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-07-06", "division": "Software", "team": "GDDP", "status": "Active"}, {"empid": 59941, "name": "Dasi Nagaraju", "designation": "Senior DevOps Engineer", "manager": "Unassigned", "allocations": {}, "doj": "2026-07-06", "division": "Software", "team": "Non GDDP", "status": "Active"}]}}};
+const MONTH_SEQUENCE = ["June 2026", "July 2026", "August 2026", "September 2026", "October 2026", "November 2026", "December 2026"];
+
+/* ---------- Main Project -> Sub Project catalog ---------- */
+const PROJECT_CATALOG = {
+  "GDDP/BI Road Map": [
+    "SI Upgrade to React","CI - Competitive Intelligence","Market Intelligence","LoR 2.0 build",
+    "C360 usage governance monthly","Automated Customer outreach","Proactive Alerts and Risk Monitoring",
+    "Structured Signals from Gong","CS Agent Phase 2","Navigation & Findability","Search & Data Utility",
+    "Consistency & Pattern Hygiene","WCAG 2.2 AA international accessibility for ICs","Platform rebuild",
+    "Salesforce App exchange","AI Hub, Agentic AVA, CS agent and Others","SAM (2.0)","Agentic AVA on STI",
+    "Short form reports (Frontend and content)","LOR","Keystone - Automation","Keystone - MCP/DDS API",
+    "Sales Intelligence - Consumer","Sales Intelligence - Industrials","Sales Intelligence - Central",
+    "Sales Intelligence – Technology","Insights & Advisory IC – STI","Insights & Advisory IC – Celent",
+    "Connected Platform + Brand Views","Modularization & Consolidation","Product Lifecycle Database (PLDB)",
+    "Ai Palette GD Data Integration on AiP : Ai Palette Side","Innovation Solution",
+    "Consumer Country category AI report","PLDB Data Crawling Phase 5","Linkup Transition",
+    "Celent - Hosting migration","Stylus SSO","Stylus AI Replacement","Linkup data migration to IC",
+    "Tech IC Modularization","Improvements for Industrial ICs (Backlog Requests)","IC Rebrand (IC & Alerts)",
+    "DDS Projects/ requests"
+  ],
+  "Media IC Roadmap": [
+    "Media IC – Metaprofile datasets","Unified Database","Unified Reader Profile",
+    "Carroll Technologies, Scottland Microsite, Allemia Microsite","GMS Improvements",
+    "Report Store Improvements"
+  ],
+  "Media Maintenance": [
+    "Data analytics for whole media sites, Commercial/Sales requests","Agile Media development/Platform tasks",
+    "Carroll Technologies, Scottland Microsite, Allemia Microsite","BTMI Maintenance and Enhancements",
+    "MBI - The Knowledge Online","Screen Global Production","Media maintenance",
+    "Vulnerability and Security Issues (all websites), performance improvements, Bot protection",
+    "MEED Support","Broadcast Intel, ALF Insights","Report Store Improvements",
+    "TS Lombard - Enhancements/Maintenance","Events registrations and marketing sites",
+    "IHTF Asia Forum events enhancements","Linkup","Celent","AiPalette",
+    "IC Maintenance - Industrials","IC Maintenance - Consumer","IC Maintenance - Tech",
+    "IC Maintenance - Hosting Support"
+  ],
+  "Common Maintenance": [
+    "Tableau","Pentaho","Datalake","IBM Planning Analytics","MSBI Canadean",
+    "LMC - Agri & Auto (Power Query Work)","GD Explorer","Jobs","Fillings","Global Ads",
+    "News & Tenders","AI Playground","Consumer CMS","C360","CMS Projects",
+    "Market Data Authoring tool","Social Media Analytics","Patents","AF","AMS","Salesforce",
+    "DBA Activities"
+  ],
+  "Backend tool maintaince": []
+};
+const MAIN_PROJECTS = Object.keys(PROJECT_CATALOG);
+const OTHER_VALUE = '__OTHER__';
+function projectKey(main, sub){ return `${main} › ${sub}`; }
+
+let PROJECTS = MONTH_DATA.projects.slice();
+
+/* ---------- GDDP Resource Allocation seed data ---------- */
+const GDDP_MONTHS = ["Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026","Jul 2026","Aug 2026","Sep 2026"];
+
+const GDDP_SEED_AREAS = [
+  { name: "Strategic Initiatives", projects: [
+    { name:"SI Upgrade to React", owner:"Bhardwaj/Anand", start:"Feb'26", end:"May'26", devManager:"Bharadwaj", required:8, effort:12, monthly:[1,5,5,5,5,5,5,5,5], gddp:[] },
+    { name:"CI - Competitive Intelligence (Non HC)", owner:"Bhardwaj", start:"Mar'26", end:"May'26", devManager:"Srinivas", required:5, effort:12, monthly:[null,null,null,1,1,4,4,4,4], gddp:[] },
+    { name:"Platform rebuild", owner:"", start:"", end:"", devManager:"All Teams", required:20, effort:36, monthly:[null,null,null,null,null,5,10,20,20], gddp:[] }
+  ]},
+  { name: "Churn tech", projects: [
+    { name:"LoR 2.0 build", owner:"", start:"", end:"", devManager:"Ansuman/ Neeraj", required:2, effort:6, monthly:[null,null,null,null,1,1,null,null,null], gddp:[] },
+    { name:"C360 usage governance monthly", owner:"", start:"", end:"", devManager:"Ansuman /Laxmunaidu", required:1, effort:"On Going", monthly:[null,null,null,null,1,1,1,1,1], gddp:[] },
+    { name:"Automated Customer outreach", owner:"", start:"", end:"", devManager:"Ansuman /Laxmunaidu", required:"TBD", effort:4, monthly:[null,null,null,null,null,1,null,null,null], gddp:[] },
+    { name:"Proactive Alerts and Risk Monitoring", owner:"", start:"", end:"", devManager:"Srinivas", required:"TBD", effort:3, monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"Structured Signals from Gong", owner:"", start:"", end:"", devManager:"Srinivas A", required:"TBD", effort:3, monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"CS Agent Phase 2", owner:"", start:"", end:"", devManager:"Srinivas", required:2, effort:4, monthly:[null,null,null,null,null,2,2,1,null], gddp:[] }
+  ]},
+  { name: "Usability", projects: [
+    { name:"Navigation & Findability", owner:"", start:"", end:"", devManager:"Srinivas", required:6, effort:14, monthly:[null,null,null,null,null,3,3,3,null], gddp:[] },
+    { name:"Search & Data Utility", owner:"", start:"", end:"", devManager:"Srinivas", required:"", effort:"", monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"Consistency & Pattern Hygiene", owner:"", start:"", end:"", devManager:"Srinivas", required:"", effort:"", monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"VPAT Accessibility & WCAG compliance for all ICs", owner:"Srinivas", start:"8 Aug 2025", end:"30 Mar 2026", devManager:"Srinivas", required:"", effort:"", monthly:[null,null,null,null,null,null,null,null,null], gddp:[] }
+  ]},
+  { name: "KeyStone Solutions", projects: [
+    { name:"Keystone Automation - Sprint 1", owner:"Srinivas", start:"1 Nov 2025", end:"30 Apr 2026", devManager:"Srinivas/Laxmun/ Rajsekhar", required:3, effort:24, monthly:[null,null,null,null,null,3,3,3,3], gddp:[] },
+    { name:"Keystone Automation- Sprint 2", owner:"Bhardwaj, Srinivas", start:"17 Nov 2025", end:"27 Feb 2026", devManager:"Srinivas/Laxmun/ Rajsekhar", required:3, effort:24, monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"Asset Intelligence", owner:"Srinivas", start:"16 Feb 2026", end:"13 Apr 2026", devManager:"Srinivas/Laxmun/Ansuman", required:1, effort:"TBD", monthly:[null,null,null,null,null,null,null,null,null], gddp:[] },
+    { name:"MCP Tech Delivery / DDS", owner:"", start:"", end:"", devManager:"Bharadwaj", required:3, effort:12, monthly:[4,4,4,6,6,6,6,6,6], gddp:[] }
+  ]},
+  { name: "KeyStone AI Initiatives", projects: [
+    { name:"AI Hub, Agentic AVA and Langfuse", owner:"", start:"", end:"", devManager:"Srinivas", required:12, effort:12, monthly:[6,6,6,6,6,6,6,6,6], gddp:[] },
+    { name:"Sam (2.0)", owner:"", start:"", end:"", devManager:"Srinivas", required:4, effort:"-", monthly:[2,2,2,2,2,2,2,2,1], gddp:[] },
+    { name:"Short form reports(Frontend and Content)", owner:"", start:"", end:"", devManager:"Bharadwaj", required:5, effort:8, monthly:[8,5,3,5,5,2,2,null,null], gddp:[] },
+    { name:"Customer Success (CS) Agent & Automated Engagement", owner:"Bharadwaj", start:"10 Mar 2025", end:"On Going", devManager:"Srinivas", required:5, effort:12, monthly:[null,2,2,2,2,null,null,null,null], gddp:[] }
+  ]},
+  { name: "Solotuion Areas", projects: [
+    { name:"Sales Intelligence  - Central", owner:"", start:"", end:"", devManager:"Bharadwaj", required:2, effort:"OnGoing", monthly:[2,1,1,1,1,1,1,1,1], gddp:[] },
+    { name:"Sales Intelligence – Technology", owner:"Sudheer", start:"10 Nov 2025", end:"23 Feb 2026", devManager:"Sudheer", required:2.5, effort:42, monthly:["TBD","TBD",0.5,1,1.5,1.5,2.5,2.5,2], gddp:[] },
+    { name:"Salesforce App exchanges", owner:"", start:"", end:"", devManager:"Bharadwaj", required:3, effort:3, monthly:[null,null,null,null,null,3,3,3,null], gddp:[] }
+  ]},
+  { name: "Platform Priorities", projects: [
+    { name:"Insights & Advisory IC – Celent", owner:"Sudheer", start:"10 Nov 2025", end:"23 Feb 2026", devManager:"Sudheer", required:5, effort:8, monthly:[4,4,3,1.5,1,1,0.5,0.5,0.5], gddp:[] },
+    { name:"Insights & Advisory IC – Stylus", owner:"Srinivas", start:"1 Apr 2025", end:"27 Feb 2026", devManager:"Sudheer", required:"TBD", effort:"TBD", monthly:[4,4,3,1.5,0,0,0.5,0.5,0.5], gddp:[] },
+    { name:"Data Center Intelligence Module", owner:"", start:"", end:"", devManager:"Sudheer", required:3, effort:12, monthly:[null,null,null,null,null,0,0.5,0.5,null], gddp:[] }
+  ]},
+  { name: "Consumer Connectivity Platform", projects: [
+    { name:"Connected Platform + Brand Views", owner:"Srinivas", start:"1 Apr 2025", end:"27 Feb 2026", devManager:"Srinivas", required:4, effort:18, monthly:[6,6,4,2,1,1,1,1,1], gddp:[] },
+    { name:"Product Lifecycle Database (PLDB) - Extension", owner:"Srinivas", start:"1 Sep 2025", end:"16 Feb 2026", devManager:"Srinivas", required:2, effort:12, monthly:[2,2,2,1,1,1,2,2,2], gddp:[] },
+    { name:"Innovation Solution", owner:"Srinivas", start:"16 Jun 2025", end:"2 Feb 2026", devManager:"Srinivas", required:1, effort:12, monthly:[1,1,1,1,1,null,null,null,null], gddp:[] },
+    { name:"Consumer Country category AI report", owner:"Srinivas", start:"1 Sep 2025", end:"16 Feb 2026", devManager:"Srinivas", required:1, effort:8, monthly:[1,1,1,1,1,1,1,null,null], gddp:[] },
+    { name:"AIP Data Integration into Consumer connected platform (Innovation intelligence)", owner:"Ajay, Vinod, Laxman, Raja", start:"28 Oct 2024", end:"27 Feb 2026", devManager:"Srinivas", required:5, effort:12, monthly:[null,null,null,null,2,4,4,null,null], gddp:[] }
+  ]},
+  { name: "Acquisition/ Integrations", projects: [
+    { name:"Linkup Transition", owner:"Srinivas", start:"10 Dec 2025", end:"16 Feb 2026", devManager:"Ajay, Vinod, Laxman, Raja", required:4, effort:24, monthly:[2,2,2,2,2,2,2,2,2], gddp:[] },
+    { name:"Stylus MCP/DDS", owner:"Laxman/Sudheer", start:"10 Dec 2025", end:"29 May 2026", devManager:"Srinivas", required:1, effort:4, monthly:[null,null,null,null,null,2,2,null,null], gddp:[] },
+    { name:"Stylus - Project Prime", owner:"", start:"", end:"", devManager:"Srinivas", required:"TBD", effort:"TBD", monthly:[null,null,null,null,null,null,1,2,2], gddp:[] },
+    { name:"Linkup data migration to IC", owner:"Sudheer", start:"23 Jul 2025", end:"15 Sep 2025", devManager:"Laxman/Sudheer", required:7, effort:16, monthly:[1.5,1.5,1.5,1.5,1.5,2,2,2,2], gddp:[] },
+    { name:"IC Maintenance -  Consumer(3), Tech(2)+Industries(2)", owner:"", start:"", end:"", devManager:"All Teams", required:7, effort:"Ongoing", monthly:[7,7,7,7,7,7,7,7,7], gddp:[] },
+    { name:"Central Maintenance & Support(Refer to list below)", owner:"", start:"", end:"", devManager:"All Teams", required:10, effort:"Ongoing", monthly:[10,10,10,10,10,10,10,10,10], gddp:[] }
+  ]}
+];
+
+
+const state = {};
+const baseMonthEmployees = MONTH_DATA.months[MONTH_SEQUENCE[0]].employees;
+MONTH_SEQUENCE.forEach(m=>{
+  state[m] = JSON.parse(JSON.stringify(baseMonthEmployees));
+});
+
+let currentMonth = MONTH_SEQUENCE[0];
+let currentMgr = "__ALL__";
+let searchTerm = "";
+let collapsedManagers = new Set();
+let mgrSubTab = {};
+let activeTab = "alloc";
+let elistSearchTerm = "";
+let elistMgrFilter = "__ALL__";
+let elistTeamFilter = "__ALL__";
+let elistDesigFilter = "__ALL__";
+let elistFilteredCache = [];
+let gddpData = JSON.parse(JSON.stringify(GDDP_SEED_AREAS));
+let gddpEditMode = false;
+let gddpSnapshot = null;
+let pendingAddManager = null; // when "+ Add Employee" clicked from a manager group header
+
+const monthSelect = document.getElementById('monthSelect');
+const mgrSelect = document.getElementById('mgrSelect');
+const searchBox = document.getElementById('searchBox');
+const main = document.getElementById('main');
+const toast = document.getElementById('toast');
+
+function showToast(msg){
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(()=> toast.classList.remove('show'), 2600);
+}
+
+function allManagers(){
+  return Array.from(new Set(state[currentMonth].map(e=>e.manager).filter(Boolean))).sort();
+}
+function allTeams(){
+  return Array.from(new Set(state[currentMonth].map(e=>e.team).filter(Boolean))).sort();
+}
+function allDesignations(){
+  return Array.from(new Set(state[currentMonth].map(e=>e.designation).filter(Boolean))).sort();
+}
+
+function initControls(){
+  MONTH_SEQUENCE.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    monthSelect.appendChild(opt);
+  });
+  setupSearchableSelect(monthSelect, 'Search month');
+  monthSelect.value = currentMonth;
+  monthSelect.addEventListener('change', ()=>{
+    currentMonth = monthSelect.value;
+    collapsedManagers = new Set();
+    render();
+  });
+  setupSearchableSelect(mgrSelect, 'Search manager');
+  mgrSelect.addEventListener('change', ()=>{ currentMgr = mgrSelect.value; render(); });
+  searchBox.addEventListener('input', ()=>{ searchTerm = searchBox.value.trim().toLowerCase(); render(); });
+
+  document.getElementById('elistSearch').addEventListener('input', (e)=>{ elistSearchTerm = e.target.value.trim().toLowerCase(); render(); });
+  document.getElementById('elistMgrFilter').addEventListener('change', (e)=>{ elistMgrFilter = e.target.value; render(); });
+  document.getElementById('elistTeamFilter').addEventListener('change', (e)=>{ elistTeamFilter = e.target.value; render(); });
+  document.getElementById('elistDesigFilter').addEventListener('change', (e)=>{ elistDesigFilter = e.target.value; render(); });
+  document.getElementById('downloadEmployeeListBtn').addEventListener('click', downloadEmployeeListExcel);
+
+  document.getElementById('gddpEditBtn').addEventListener('click', enterGddpEdit);
+  document.getElementById('gddpSaveBtn').addEventListener('click', saveGddpEdit);
+  document.getElementById('gddpCancelBtn').addEventListener('click', cancelGddpEdit);
+  document.getElementById('downloadGddpBtn').addEventListener('click', downloadGddpExcel);
+
+  document.getElementById('downloadBtn').addEventListener('click', downloadWorkbook);
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b===btn));
+      document.getElementById('allocToolbar').style.display = activeTab==='alloc' ? 'flex' : 'none';
+      document.getElementById('elistToolbar').style.display = activeTab==='emplist' ? 'flex' : 'none';
+      document.getElementById('gddpToolbar').style.display = activeTab==='gddp' ? 'flex' : 'none';
+      render();
+    });
+  });
+
+  document.getElementById('addProjectBtn').addEventListener('click', ()=> openProjectPanel());
+  document.getElementById('addEmployeeBtnAlloc').addEventListener('click', ()=> openEmployeePanel(currentMgr !== '__ALL__' ? currentMgr : null));
+  document.getElementById('addEmployeeBtnList').addEventListener('click', ()=> openEmployeePanel(null));
+
+  document.getElementById('empPanelClose').addEventListener('click', closeEmployeePanel);
+  document.getElementById('empCancelBtn').addEventListener('click', closeEmployeePanel);
+  document.getElementById('empSaveBtn').addEventListener('click', saveNewEmployee);
+
+  document.getElementById('projPanelClose').addEventListener('click', closeProjectPanel);
+  document.getElementById('projCancelBtn').addEventListener('click', closeProjectPanel);
+  document.getElementById('projSaveBtn').addEventListener('click', saveNewProject);
+
+  document.getElementById('loadRosterBtn').addEventListener('click', ()=> document.getElementById('rosterFile').click());
+  document.getElementById('rosterFile').addEventListener('change', handleRosterFile);
+}
+
+/* ---------- Add Employee panel ---------- */
+function openEmployeePanel(presetManager){
+  pendingAddManager = presetManager;
+  const mgrList = document.getElementById('mgrList');
+  mgrList.innerHTML = '';
+  allManagers().forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m;
+    mgrList.appendChild(opt);
+  });
+  document.getElementById('fEmpId').value = '';
+  document.getElementById('fEmpName').value = '';
+  document.getElementById('fEmpDesig').value = '';
+  document.getElementById('fEmpMgr').value = presetManager || '';
+  document.getElementById('fEmpDiv').value = '';
+  document.getElementById('fEmpTeam').value = '';
+  document.getElementById('fEmpDoj').value = '';
+  document.getElementById('fEmpStatus').value = 'Active';
+  document.getElementById('empOverlay').classList.remove('hidden');
+  document.getElementById('fEmpName').focus();
+}
+function closeEmployeePanel(){ document.getElementById('empOverlay').classList.add('hidden'); }
+
+function saveNewEmployee(){
+  const name = document.getElementById('fEmpName').value.trim();
+  if(!name){ showToast('Employee name is required'); return; }
+  const empidRaw = document.getElementById('fEmpId').value.trim();
+  const empid = empidRaw ? (isNaN(empidRaw) ? empidRaw : Number(empidRaw)) : ('NEW-' + Math.random().toString(36).slice(2,7));
+  const mgr = document.getElementById('fEmpMgr').value.trim() || 'Unassigned';
+
+  const emps = state[currentMonth];
+  if(emps.some(e=> String(e.empid) === String(empid))){
+    showToast('An employee with this Emp ID already exists');
+    return;
+  }
+
+  emps.push({
+    empid: empid,
+    name: name,
+    designation: document.getElementById('fEmpDesig').value.trim(),
+    manager: mgr,
+    allocations: {},
+    doj: document.getElementById('fEmpDoj').value || '',
+    division: document.getElementById('fEmpDiv').value.trim(),
+    team: document.getElementById('fEmpTeam').value.trim(),
+    status: document.getElementById('fEmpStatus').value.trim() || 'Active',
+    _new: true
+  });
+
+  closeEmployeePanel();
+  showToast(`${name} added under ${mgr}`);
+  if(activeTab === 'alloc' && currentMgr !== '__ALL__' && currentMgr !== mgr){
+    currentMgr = mgr;
+    mgrSelect.value = mgr;
+  }
+  render();
+}
+
+/* ---------- Add Project panel (Main -> Sub cascading) ---------- */
+function populateMainSelect(selectEl){
+  selectEl.innerHTML = '';
+  MAIN_PROJECTS.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    selectEl.appendChild(opt);
+  });
+}
+function populateSubSelect(subEl, main, excludeSet, otherWrapEl){
+  subEl.innerHTML = '';
+  const subs = (PROJECT_CATALOG[main] || []).filter(s => !excludeSet || !excludeSet.has(projectKey(main, s)));
+  subs.forEach(s=>{
+    const opt = document.createElement('option');
+    opt.value = s; opt.textContent = s;
+    subEl.appendChild(opt);
+  });
+  const otherOpt = document.createElement('option');
+  otherOpt.value = OTHER_VALUE; otherOpt.textContent = '+ Other (type new)';
+  subEl.appendChild(otherOpt);
+  if(otherWrapEl){
+    otherWrapEl.style.display = subEl.value === OTHER_VALUE ? 'block' : 'none';
+  }
+}
+
+function openProjectPanel(){
+  const mainSel = document.getElementById('fProjMain');
+  const subSel = document.getElementById('fProjSub');
+  const otherWrap = document.getElementById('fProjOtherWrap');
+  const otherInput = document.getElementById('fProjOther');
+  otherInput.value = '';
+  populateMainSelect(mainSel);
+  populateSubSelect(subSel, mainSel.value, null, otherWrap);
+  mainSel.onchange = ()=> populateSubSelect(subSel, mainSel.value, null, otherWrap);
+  subSel.onchange = ()=>{ otherWrap.style.display = subSel.value === OTHER_VALUE ? 'block' : 'none'; };
+  document.getElementById('projOverlay').classList.remove('hidden');
+}
+function closeProjectPanel(){ document.getElementById('projOverlay').classList.add('hidden'); }
+function saveNewProject(){
+  const mainSel = document.getElementById('fProjMain');
+  const subSel = document.getElementById('fProjSub');
+  const otherInput = document.getElementById('fProjOther');
+  const main = mainSel.value;
+  let sub = subSel.value;
+  if(sub === OTHER_VALUE){
+    sub = otherInput.value.trim();
+    if(!sub){ showToast('Enter a sub project name'); return; }
+  }
+  const key = projectKey(main, sub);
+  if(PROJECTS.some(p=>p.toLowerCase() === key.toLowerCase())){
+    showToast('That project already exists');
+    return;
+  }
+  PROJECTS.push(key);
+  closeProjectPanel();
+  showToast(`Project "${sub}" added under ${main}`);
+  render();
+}
+
+/* ---------- Roster file load / merge ---------- */
+function normHeader(h){
+  return String(h||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+}
+function findCol(headers, candidates){
+  const norm = headers.map(normHeader);
+  for(const cand of candidates){
+    const idx = norm.findIndex(h => h === cand || h.includes(cand));
+    if(idx !== -1) return idx;
+  }
+  return -1;
+}
+
+function handleRosterFile(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, defval:''});
+      if(!rows.length){ showToast('File appears to be empty'); return; }
+      const headers = rows[0];
+      const idEmpId = findCol(headers, ['empid','employeeid','id']);
+      const idName = findCol(headers, ['empname','employeename','name']);
+      const idDoj = findCol(headers, ['originaldoj','doj','dateofjoining']);
+      const idDesig = findCol(headers, ['currentdesignation','designation']);
+      const idDiv = findCol(headers, ['division']);
+      const idStatus = findCol(headers, ['status']);
+      const idTeam = findCol(headers, ['team']);
+
+      if(idName === -1){
+        showToast('Could not find an "Emp Name" column in this file');
+        return;
+      }
+
+      const emps = state[currentMonth];
+      const byId = {};
+      emps.forEach(em => byId[String(em.empid)] = em);
+
+      let updated = 0, added = 0;
+      for(let r=1; r<rows.length; r++){
+        const row = rows[r];
+        const name = idName!==-1 ? String(row[idName]||'').trim() : '';
+        if(!name) continue;
+        const empid = idEmpId!==-1 ? row[idEmpId] : null;
+        const doj = idDoj!==-1 ? row[idDoj] : '';
+        const desig = idDesig!==-1 ? String(row[idDesig]||'').trim() : '';
+        const div = idDiv!==-1 ? String(row[idDiv]||'').trim() : '';
+        const status = idStatus!==-1 ? String(row[idStatus]||'').trim() : '';
+        const team = idTeam!==-1 ? String(row[idTeam]||'').trim() : '';
+
+        const key = empid !== null && empid !== '' ? String(empid) : null;
+        const existing = key ? byId[key] : null;
+
+        if(existing){
+          existing.name = name || existing.name;
+          existing.designation = desig || existing.designation;
+          existing.doj = doj || existing.doj;
+          existing.division = div || existing.division;
+          existing.status = status || existing.status || 'Active';
+          existing.team = team || existing.team;
+          updated++;
+        } else {
+          const newEmp = {
+            empid: key ? (isNaN(key) ? key : Number(key)) : ('NEW-' + Math.random().toString(36).slice(2,7)),
+            name: name,
+            designation: desig,
+            manager: 'Unassigned',
+            allocations: {},
+            doj: doj,
+            division: div,
+            team: team,
+            status: status || 'Active',
+            _new: true
+          };
+          emps.push(newEmp);
+          if(key) byId[key] = newEmp;
+          added++;
+        }
+      }
+      showToast(`Employee list updated — ${updated} matched, ${added} new`);
+      render();
+    }catch(err){
+      console.error(err);
+      showToast('Could not read that file — check it is a valid .xlsx/.csv');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  evt.target.value = '';
+}
+
+/* ---------- Allocation helpers ---------- */
+function populateManagerSelect(){
+  const managers = allManagers();
+  mgrSelect.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '__ALL__'; allOpt.textContent = `All Managers (${managers.length})`;
+  mgrSelect.appendChild(allOpt);
+  managers.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    mgrSelect.appendChild(opt);
+  });
+  if(!managers.includes(currentMgr) && currentMgr !== '__ALL__'){ currentMgr = '__ALL__'; }
+  mgrSelect.value = currentMgr;
+  setupSearchableSelect(mgrSelect, 'Search manager');
+}
+
+function populateElistMgrFilter(){
+  const sel = document.getElementById('elistMgrFilter');
+  const managers = allManagers();
+  const prev = elistMgrFilter;
+  sel.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '__ALL__'; allOpt.textContent = 'All Managers';
+  sel.appendChild(allOpt);
+  managers.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = m;
+    sel.appendChild(opt);
+  });
+  if(!managers.includes(prev) && prev !== '__ALL__'){ elistMgrFilter = '__ALL__'; }
+  sel.value = elistMgrFilter;
+  setupSearchableSelect(sel, 'Search manager');
+}
+
+function populateElistTeamFilter(){
+  const sel = document.getElementById('elistTeamFilter');
+  const teams = allTeams();
+  const prev = elistTeamFilter;
+  sel.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '__ALL__'; allOpt.textContent = 'All Teams';
+  sel.appendChild(allOpt);
+  teams.forEach(t=>{
+    const opt = document.createElement('option');
+    opt.value = t; opt.textContent = t;
+    sel.appendChild(opt);
+  });
+  if(!teams.includes(prev) && prev !== '__ALL__'){ elistTeamFilter = '__ALL__'; }
+  sel.value = elistTeamFilter;
+  setupSearchableSelect(sel, 'Search team');
+}
+
+function populateElistDesigFilter(){
+  const sel = document.getElementById('elistDesigFilter');
+  const desigs = allDesignations();
+  const prev = elistDesigFilter;
+  sel.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = '__ALL__'; allOpt.textContent = 'All Designations';
+  sel.appendChild(allOpt);
+  desigs.forEach(d=>{
+    const opt = document.createElement('option');
+    opt.value = d; opt.textContent = d;
+    sel.appendChild(opt);
+  });
+  if(!desigs.includes(prev) && prev !== '__ALL__'){ elistDesigFilter = '__ALL__'; }
+  sel.value = elistDesigFilter;
+  setupSearchableSelect(sel, 'Search designation');
+}
+
+function totalPct(emp){ return Object.values(emp.allocations).reduce((a,b)=>a + (Number(b)||0), 0); }
+function pillClass(total){
+  if(total <= 0) return 'zero';
+  if(total > 100) return 'over';
+  if(total < 100) return 'warn';
+  return 'ok';
+}
+function truncate(s, n){ if(!s) return s; return s.length > n ? s.slice(0,n-1) + '…' : s; }
+function escapeHtml(s){
+  if(s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function setupSearchableSelect(select, placeholder){
+  const wrapper = select.closest('.custom-dropdown');
+
+  if(select.dataset.searchReady === 'true' && wrapper){
+    const input = wrapper.querySelector('.dropdown-search');
+    const current = select.options[select.selectedIndex];
+    if(current && input){ input.value = current.textContent; }
+    if(typeof select._renderSearchOptions === 'function'){
+      select._renderSearchOptions(true);
+    }
+    return;
+  }
+
+  select.style.display = 'none';
+  const newWrapper = document.createElement('div');
+  newWrapper.className = 'custom-dropdown';
+
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'dropdown-search';
+  searchInput.placeholder = placeholder;
+  searchInput.autocomplete = 'off';
+
+  const optionsBox = document.createElement('div');
+  optionsBox.className = 'dropdown-options';
+
+  const parent = select.parentElement;
+  if(parent){ parent.insertBefore(newWrapper, select); }
+  newWrapper.appendChild(searchInput);
+  newWrapper.appendChild(optionsBox);
+  newWrapper.appendChild(select);
+
+  const renderOptions = (forceAll)=>{
+    const term = forceAll ? '' : searchInput.value.trim().toLowerCase();
+    optionsBox.innerHTML = '';
+
+    const matched = Array.from(select.options).filter(opt => {
+      const label = opt.textContent.trim();
+      return !term || label.toLowerCase().includes(term);
+    });
+
+    if(!matched.length){
+      const none = document.createElement('div');
+      none.className = 'dropdown-no-result';
+      none.textContent = 'No matching option';
+      optionsBox.appendChild(none);
+      return;
+    }
+
+    matched.forEach(opt=>{
+      const item = document.createElement('div');
+      item.className = 'custom-option';
+      item.dataset.value = opt.value;
+      item.textContent = opt.textContent;
+      if(opt.value === select.value){ item.classList.add('active'); }
+      item.addEventListener('mousedown', (e)=>{
+        e.preventDefault();
+        select.value = opt.value;
+        searchInput.value = opt.textContent;
+        newWrapper.classList.remove('open');
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        renderOptions();
+      });
+      optionsBox.appendChild(item);
+    });
+  };
+
+  searchInput.addEventListener('focus', ()=>{
+    newWrapper.classList.add('open');
+    searchInput.select();
+    renderOptions(true);
+  });
+
+  searchInput.addEventListener('input', ()=>{
+    newWrapper.classList.add('open');
+    renderOptions();
+  });
+
+  document.addEventListener('click', (e)=>{
+    if(!newWrapper.contains(e.target)){
+      newWrapper.classList.remove('open');
+    }
+  });
+
+  select.addEventListener('change', ()=>{
+    const current = select.options[select.selectedIndex];
+    if(current){ searchInput.value = current.textContent; }
+    renderOptions();
+  });
+
+  select._renderSearchOptions = renderOptions;
+  select.dataset.searchReady = 'true';
+  const current = select.options[select.selectedIndex];
+  if(current){ searchInput.value = current.textContent; }
+  renderOptions();
+}
+
+/* ---------- Master render dispatcher ---------- */
+function render(){
+  if(activeTab === 'alloc'){ renderAllocations(); }
+  else if(activeTab === 'gddp'){ renderGDDP(); }
+  else { renderEmployeeList(); }
+}
+
+function renderAllocations(){
+  populateManagerSelect();
+  const emps = state[currentMonth];
+
+  let filtered = emps.filter(e=>{
+    if(currentMgr !== '__ALL__' && e.manager !== currentMgr) return false;
+    if(searchTerm){
+      const hay = (String(e.empid)+' '+e.name).toLowerCase();
+      if(!hay.includes(searchTerm)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('statEmp').textContent = filtered.length;
+  document.getElementById('statMgr').textContent = new Set(filtered.map(e=>e.manager)).size;
+  const activeProjects = new Set();
+  filtered.forEach(e=> Object.keys(e.allocations).forEach(p=>activeProjects.add(p)) );
+  document.getElementById('statProj').textContent = activeProjects.size;
+
+  if(filtered.length === 0){
+    main.innerHTML = `<div class="empty-state">No employees match this filter. Try a different manager or search term.</div>`;
+    return;
+  }
+
+  const groups = {};
+  filtered.forEach(e=>{
+    const key = e.manager || 'Unassigned';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(e);
+  });
+
+  const managerNames = Object.keys(groups).sort();
+  main.innerHTML = '';
+
+  managerNames.forEach(mgr=>{
+    const groupEmps = groups[mgr];
+    const groupEl = document.createElement('div');
+    groupEl.className = 'mgr-group' + (collapsedManagers.has(mgr) ? ' collapsed' : '');
+
+    const head = document.createElement('div');
+    head.className = 'mgr-head';
+    const left = document.createElement('div');
+    left.className = 'left';
+    left.innerHTML = `<span class="name"><span class="caret">▾</span> ${escapeHtml(mgr)}</span><span class="count">${groupEmps.length} ${groupEmps.length===1?'employee':'employees'}</span>`;
+    left.addEventListener('click', ()=>{
+      if(collapsedManagers.has(mgr)) collapsedManagers.delete(mgr); else collapsedManagers.add(mgr);
+      groupEl.classList.toggle('collapsed');
+    });
+    const right = document.createElement('div');
+    right.className = 'right';
+    const addBtn = document.createElement('button');
+    addBtn.className = 'btn btn-outline btn-sm';
+    addBtn.textContent = '+ Add Employee';
+    addBtn.addEventListener('click', (ev)=>{ ev.stopPropagation(); openEmployeePanel(mgr); });
+    right.appendChild(addBtn);
+    head.appendChild(left);
+    head.appendChild(right);
+    groupEl.appendChild(head);
+
+    const sub = mgrSubTab[mgr] || 'alloc';
+    const subtabs = document.createElement('div');
+    subtabs.className = 'subtabs';
+    ['alloc','summary'].forEach(key=>{
+      const b = document.createElement('button');
+      b.className = 'subtab-btn' + (sub===key ? ' active' : '');
+      b.textContent = key==='alloc' ? 'Allocation' : 'Summary';
+      b.addEventListener('click', ()=>{ mgrSubTab[mgr] = key; render(); });
+      subtabs.appendChild(b);
+    });
+    groupEl.appendChild(subtabs);
+
+    if(sub === 'summary'){
+      groupEl.appendChild(buildSummaryPanel(mgr, groupEmps));
+    } else {
+      groupEl.appendChild(buildAllocTable(groupEmps));
+    }
+
+    main.appendChild(groupEl);
+  });
+}
+
+function buildAllocTable(groupEmps){
+  const wrap = document.createElement('div');
+  wrap.className = 'emp-table-wrap';
+  const table = document.createElement('table');
+  table.className = 'emp-table';
+  table.innerHTML = `<thead><tr>
+      <th style="width:70px;">Emp ID</th>
+      <th style="width:200px;">Employee</th>
+      <th>Project Allocations</th>
+      <th style="width:80px;" class="totalcell">Total</th>
+    </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  groupEmps.forEach(emp=>{
+    const tr = document.createElement('tr');
+    const total = totalPct(emp);
+
+    const tdId = document.createElement('td');
+    tdId.textContent = emp.empid ?? '—';
+
+    const tdName = document.createElement('td');
+    tdName.innerHTML = `<div class="empname">${escapeHtml(emp.name)}${emp._new ? '<span class="new-tag">NEW</span>' : ''}</div><div class="empmeta">${escapeHtml(emp.designation||'')}</div>`;
+
+    const tdAlloc = document.createElement('td');
+    tdAlloc.appendChild(buildChips(emp));
+    tdAlloc.appendChild(buildAddRow(emp));
+
+    const tdTotal = document.createElement('td');
+    tdTotal.className = 'totalcell';
+    const pill = document.createElement('span');
+    pill.className = 'totalpill ' + pillClass(total);
+    pill.textContent = total + '%';
+    tdTotal.appendChild(pill);
+
+    tr.appendChild(tdId);
+    tr.appendChild(tdName);
+    tr.appendChild(tdAlloc);
+    tr.appendChild(tdTotal);
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  return wrap;
+}
+
+/* ---------- Per-manager summary: pie chart + list of employees not at 100% ---------- */
+function polarToCartesian(cx, cy, r, angleDeg){
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+function arcPath(cx, cy, r, startAngle, endAngle){
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArc = (endAngle - startAngle) <= 180 ? 0 : 1;
+  return `M ${cx} ${cy} L ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${r} ${r} 0 ${largeArc} 0 ${end.x.toFixed(2)} ${end.y.toFixed(2)} Z`;
+}
+function buildPieSvg(slices){
+  const total = slices.reduce((s,d)=> s + d.value, 0);
+  const cx=100, cy=100, r=88;
+  if(total <= 0){
+    return `<svg viewBox="0 0 200 200" width="180" height="180"><circle cx="${cx}" cy="${cy}" r="${r}" fill="#EEF0F5"></circle></svg>`;
+  }
+  const full = slices.find(d => d.value === total);
+  let inner = '';
+  if(full){
+    inner = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${full.color}"></circle>`;
+  } else {
+    let cumulative = 0;
+    slices.forEach(d=>{
+      if(d.value <= 0) return;
+      const startAngle = cumulative / total * 360;
+      cumulative += d.value;
+      const endAngle = cumulative / total * 360;
+      inner += `<path d="${arcPath(cx,cy,r,startAngle,endAngle)}" fill="${d.color}"></path>`;
+    });
+  }
+  return `<svg viewBox="0 0 200 200" width="180" height="180">${inner}<circle cx="${cx}" cy="${cy}" r="40" fill="#fff"></circle></svg>`;
+}
+
+function buildSummaryPanel(mgr, groupEmps){
+  const wrap = document.createElement('div');
+  wrap.className = 'summary-wrap';
+
+  const counts = { ok:0, under:0, over:0, zero:0 };
+  const flagged = [];
+  groupEmps.forEach(emp=>{
+    const total = totalPct(emp);
+    if(total <= 0){ counts.zero++; }
+    else if(total < 100){ counts.under++; }
+    else if(total > 100){ counts.over++; }
+    else { counts.ok++; }
+    if(total !== 100){ flagged.push({emp, total}); }
+  });
+
+  const slices = [
+    { label:'Fully Allocated (100%)', value:counts.ok, color:'#2F6F6A' },
+    { label:'Under-allocated (<100%)', value:counts.under, color:'#C98A2C' },
+    { label:'Over-allocated (>100%)', value:counts.over, color:'#B5432E' },
+    { label:'Unallocated (0%)', value:counts.zero, color:'#9AA3B2' }
+  ];
+
+  const chartRow = document.createElement('div');
+  chartRow.className = 'summary-chart-row';
+
+  const chartCol = document.createElement('div');
+  chartCol.className = 'summary-chart';
+  chartCol.innerHTML = buildPieSvg(slices);
+
+  const legend = document.createElement('div');
+  legend.className = 'pie-legend';
+  slices.forEach(s=>{
+    const pct = groupEmps.length ? Math.round(s.value/groupEmps.length*100) : 0;
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${s.color};"></span>
+      <span class="legend-label">${s.label}</span>
+      <span class="legend-count">${s.value} (${pct}%)</span>`;
+    legend.appendChild(item);
+  });
+
+  chartRow.appendChild(chartCol);
+  chartRow.appendChild(legend);
+  wrap.appendChild(chartRow);
+
+  const listHead = document.createElement('div');
+  listHead.className = 'summary-list-head';
+  listHead.textContent = flagged.length
+    ? `${flagged.length} of ${groupEmps.length} employees are not at 100% allocation`
+    : `All ${groupEmps.length} employees are at exactly 100% allocation`;
+  wrap.appendChild(listHead);
+
+  if(flagged.length){
+    flagged.sort((a,b)=> Math.abs(b.total-100) - Math.abs(a.total-100));
+    const table = document.createElement('table');
+    table.className = 'summary-table';
+    table.innerHTML = `<thead><tr>
+        <th style="width:70px;">Emp ID</th>
+        <th>Employee</th>
+        <th style="width:130px;">Status</th>
+        <th style="width:80px;" class="totalcell">Total</th>
+      </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    flagged.forEach(({emp,total})=>{
+      const tr = document.createElement('tr');
+      const statusLabel = total <= 0 ? 'Unallocated' : (total < 100 ? 'Under-allocated' : 'Over-allocated');
+      const statusClass = total <= 0 ? 'zero' : (total < 100 ? 'warn' : 'over');
+      tr.innerHTML = `<td>${emp.empid ?? '—'}</td>
+        <td><span class="empname">${escapeHtml(emp.name)}</span><div class="empmeta">${escapeHtml(emp.designation||'')}</div></td>
+        <td><span class="totalpill ${statusClass}">${statusLabel}</span></td>
+        <td class="totalcell"><span class="totalpill ${pillClass(total)}">${total}%</span></td>`;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+  }
+
+  return wrap;
+}
+
+function buildChips(emp){
+  const wrap = document.createElement('div');
+  wrap.className = 'chips';
+  Object.keys(emp.allocations).sort().forEach(proj=>{
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.title = proj;
+    const label = document.createElement('span');
+    label.textContent = truncate(proj, 34);
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = 0; input.max = 100; input.step = 5;
+    input.value = emp.allocations[proj];
+    input.addEventListener('change', ()=>{
+      let v = Number(input.value);
+      if(isNaN(v) || v < 0) v = 0;
+      if(v > 100) v = 100;
+      if(v === 0){ delete emp.allocations[proj]; } else { emp.allocations[proj] = v; }
+      render();
+    });
+    const pct = document.createElement('span');
+    pct.className = 'pct'; pct.textContent = '%';
+    const rm = document.createElement('button');
+    rm.className = 'rm'; rm.innerHTML = '×'; rm.title = 'Remove allocation';
+    rm.addEventListener('click', ()=>{ delete emp.allocations[proj]; render(); });
+    chip.appendChild(label); chip.appendChild(input); chip.appendChild(pct); chip.appendChild(rm);
+    wrap.appendChild(chip);
+  });
+  if(Object.keys(emp.allocations).length === 0){
+    const none = document.createElement('span');
+    none.style.fontSize = '12px'; none.style.color = 'var(--ink-soft)';
+    none.textContent = 'No allocation yet';
+    wrap.appendChild(none);
+  }
+  return wrap;
+}
+
+function buildAddRow(emp){
+  const row = document.createElement('div');
+  row.className = 'addrow';
+
+  // Main project select (plain — short list)
+  const mainSelect = document.createElement('select');
+  mainSelect.style.maxWidth = '180px';
+  MAIN_PROJECTS.forEach(m=>{
+    const opt = document.createElement('option');
+    opt.value = m; opt.textContent = truncate(m, 24);
+    mainSelect.appendChild(opt);
+  });
+
+  // Sub project select (plain — matches Main Project field style)
+  const subSelect = document.createElement('select');
+  subSelect.style.maxWidth = '220px';
+
+  // Other/custom sub project name fallback
+  const otherInput = document.createElement('input');
+  otherInput.type = 'text';
+  otherInput.placeholder = 'Sub project name';
+  otherInput.style.display = 'none';
+  otherInput.style.minWidth = '160px';
+
+  const excludeSet = new Set(Object.keys(emp.allocations));
+
+  const pctInput = document.createElement('input');
+  pctInput.type = 'number'; pctInput.min = 5; pctInput.max = 100; pctInput.step = 5;
+  pctInput.placeholder = '%'; pctInput.value = 10;
+  const btn = document.createElement('button');
+  btn.textContent = 'Add';
+
+  row.appendChild(mainSelect); row.appendChild(subSelect); row.appendChild(otherInput);
+  row.appendChild(pctInput); row.appendChild(btn);
+
+  function refreshSubOptions(){
+    subSelect.innerHTML = '';
+    populateSubSelect(subSelect, mainSelect.value, excludeSet, otherInput);
+  }
+  refreshSubOptions();
+
+  mainSelect.addEventListener('change', refreshSubOptions);
+  subSelect.addEventListener('change', ()=>{
+    otherInput.style.display = subSelect.value === OTHER_VALUE ? 'inline-block' : 'none';
+  });
+
+  btn.addEventListener('click', ()=>{
+    const main = mainSelect.value;
+    let sub = subSelect.value;
+    if(sub === OTHER_VALUE){
+      sub = otherInput.value.trim();
+      if(!sub){ showToast('Enter a sub project name'); return; }
+    }
+    if(!sub) return;
+    const key = projectKey(main, sub);
+    let v = Number(pctInput.value);
+    if(isNaN(v) || v <= 0) v = 10;
+    if(v > 100) v = 100;
+    if(!PROJECTS.some(p=>p.toLowerCase() === key.toLowerCase())){ PROJECTS.push(key); }
+    emp.allocations[key] = v;
+    render();
+  });
+  return row;
+}
+
+/* ---------- Employee List tab ---------- */
+function renderEmployeeList(){
+  populateElistMgrFilter();
+  populateElistTeamFilter();
+  populateElistDesigFilter();
+  const emps = state[currentMonth];
+
+  let filtered = emps.filter(e=>{
+    if(elistMgrFilter !== '__ALL__' && e.manager !== elistMgrFilter) return false;
+    if(elistTeamFilter !== '__ALL__' && e.team !== elistTeamFilter) return false;
+    if(elistDesigFilter !== '__ALL__' && e.designation !== elistDesigFilter) return false;
+    if(elistSearchTerm){
+      const hay = (String(e.empid)+' '+e.name).toLowerCase();
+      if(!hay.includes(elistSearchTerm)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('elistStatTotal').textContent = emps.length;
+  document.getElementById('elistStatNew').textContent = emps.filter(e=>e._new).length;
+  document.getElementById('elistStatUnassigned').textContent = emps.filter(e=>!e.manager || e.manager === 'Unassigned').length;
+
+  elistFilteredCache = filtered;
+
+  if(filtered.length === 0){
+    main.innerHTML = `<div class="empty-state">No employees match this filter.</div>`;
+    return;
+  }
+
+  const managers = allManagers();
+  const card = document.createElement('div');
+  card.className = 'elist-card';
+  const table = document.createElement('table');
+  table.className = 'roster-table';
+  table.innerHTML = `<thead><tr>
+      <th style="width:75px;">Emp ID</th>
+      <th style="width:190px;">Name</th>
+      <th style="width:170px;">Designation</th>
+      <th style="width:170px;">Reporting Manager</th>
+      <th style="width:110px;">Division</th>
+      <th style="width:100px;">Team</th>
+      <th style="width:115px;">DOJ</th>
+      <th style="width:90px;">Status</th>
+      <th style="width:40px;"></th>
+    </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  filtered.forEach(emp=>{
+    const tr = document.createElement('tr');
+
+    const tdId = document.createElement('td');
+    tdId.textContent = emp.empid ?? '—';
+
+    const tdName = document.createElement('td');
+    tdName.innerHTML = `<span class="empname">${escapeHtml(emp.name)}</span>${emp._new ? '<span class="new-tag">NEW</span>' : ''}`;
+
+    const tdDesig = document.createElement('td');
+    const desigInput = document.createElement('input');
+    desigInput.type = 'text'; desigInput.value = emp.designation || '';
+    desigInput.addEventListener('change', ()=>{ emp.designation = desigInput.value.trim(); });
+    tdDesig.appendChild(desigInput);
+
+    const tdMgr = document.createElement('td');
+    const mgrInput = document.createElement('input');
+    mgrInput.type = 'text'; mgrInput.value = emp.manager || '';
+    mgrInput.setAttribute('list','mgrListInline');
+    mgrInput.addEventListener('change', ()=>{ emp.manager = mgrInput.value.trim() || 'Unassigned'; render(); });
+    tdMgr.appendChild(mgrInput);
+
+    const tdDiv = document.createElement('td');
+    const divInput = document.createElement('input');
+    divInput.type = 'text'; divInput.value = emp.division || '';
+    divInput.addEventListener('change', ()=>{ emp.division = divInput.value.trim(); });
+    tdDiv.appendChild(divInput);
+
+    const tdTeam = document.createElement('td');
+    const teamInput = document.createElement('input');
+    teamInput.type = 'text'; teamInput.value = emp.team || '';
+    teamInput.addEventListener('change', ()=>{ emp.team = teamInput.value.trim(); });
+    tdTeam.appendChild(teamInput);
+
+    const tdDoj = document.createElement('td');
+    tdDoj.textContent = emp.doj || '—';
+    tdDoj.style.color = 'var(--ink-soft)'; tdDoj.style.fontSize = '12px';
+
+    const tdStatus = document.createElement('td');
+    const st = (emp.status || 'Active');
+    const badge = document.createElement('span');
+    badge.className = 'status-badge ' + (st.toLowerCase()==='active' ? 'active' : 'other');
+    badge.textContent = st;
+    tdStatus.appendChild(badge);
+
+    const tdRm = document.createElement('td');
+    const rmBtn = document.createElement('button');
+    rmBtn.className = 'rm-emp'; rmBtn.innerHTML = '×'; rmBtn.title = 'Remove employee';
+    rmBtn.addEventListener('click', ()=>{
+      const idx = state[currentMonth].indexOf(emp);
+      if(idx !== -1){ state[currentMonth].splice(idx,1); showToast(`${emp.name} removed`); render(); }
+    });
+    tdRm.appendChild(rmBtn);
+
+    tr.appendChild(tdId); tr.appendChild(tdName); tr.appendChild(tdDesig); tr.appendChild(tdMgr);
+    tr.appendChild(tdDiv); tr.appendChild(tdTeam); tr.appendChild(tdDoj); tr.appendChild(tdStatus); tr.appendChild(tdRm);
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  card.appendChild(table);
+  main.innerHTML = '';
+
+  const dl = document.createElement('datalist');
+  dl.id = 'mgrListInline';
+  managers.forEach(m=>{ const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+  main.appendChild(dl);
+  main.appendChild(card);
+}
+
+/* ---------- GDDP Resource Allocation tab ---------- */
+function enterGddpEdit(){
+  gddpSnapshot = JSON.parse(JSON.stringify(gddpData));
+  gddpEditMode = true;
+  render();
+}
+function saveGddpEdit(){
+  gddpEditMode = false;
+  gddpSnapshot = null;
+  showToast('Changes saved');
+  render();
+}
+function cancelGddpEdit(){
+  if(gddpSnapshot){ gddpData = gddpSnapshot; }
+  gddpSnapshot = null;
+  gddpEditMode = false;
+  render();
+}
+
+function gddpAllEmployeeNames(){
+  return state[currentMonth].map(e=>e.name).filter(Boolean);
+}
+
+function gddpMonthlyAllocationTotals(){
+  const totals = GDDP_MONTHS.map(()=>0);
+  gddpData.forEach(area=>{
+    area.projects.forEach(p=>{
+      p.monthly.forEach((v,i)=>{
+        const n = Number(v);
+        if(!isNaN(n) && v !== null && v !== ''){ totals[i] += n; }
+      });
+    });
+  });
+  return totals;
+}
+
+function gddpTotalRequirement(){
+  let total = 0;
+  gddpData.forEach(area=>{
+    area.projects.forEach(p=>{
+      const n = Number(p.required);
+      if(!isNaN(n) && p.required !== null && p.required !== ''){ total += n; }
+    });
+  });
+  return total;
+}
+
+function renderGDDP(){
+  // populate the shared datalist of GDDP employee names (from the Employee List tab)
+  const dl = document.getElementById('gddpEmpDatalist');
+  dl.innerHTML = '';
+  gddpAllEmployeeNames().forEach(n=>{
+    const opt = document.createElement('option');
+    opt.value = n;
+    dl.appendChild(opt);
+  });
+
+  // toolbar button state
+  document.getElementById('gddpEditBtn').style.display = gddpEditMode ? 'none' : 'inline-flex';
+  document.getElementById('gddpSaveBtn').style.display = gddpEditMode ? 'inline-flex' : 'none';
+  document.getElementById('gddpCancelBtn').style.display = gddpEditMode ? 'inline-flex' : 'none';
+
+  const totalAvailable = state[currentMonth].length;
+  const allocTotals = gddpMonthlyAllocationTotals();
+  const latestAlloc = allocTotals.length ? allocTotals[allocTotals.length-1] : 0;
+  const surplus = totalAvailable - latestAlloc;
+  document.getElementById('gddpStatAlloc').textContent = latestAlloc;
+  document.getElementById('gddpStatAvail').textContent = totalAvailable;
+  document.getElementById('gddpStatSurplus').textContent = surplus;
+
+  const wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  wrap.style.background = '#fff';
+  wrap.style.border = '1px solid var(--line)';
+  wrap.style.borderRadius = '6px';
+
+  const table = document.createElement('table');
+  table.className = 'roster-table gddp-table';
+  table.style.minWidth = '1700px';
+
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const headers = ['Solution Area / Key Initiative','Projects','Responsible Owner','Start Date','End Date','Dev Manager','Required','Effort in Weeks',
+    ...GDDP_MONTHS, 'GDDP Resources'];
+  if(gddpEditMode) headers.push('');
+  headers.forEach(h=>{
+    const th = document.createElement('th');
+    th.textContent = h;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+
+  function makeCell(value, onCommit, opts){
+    opts = opts || {};
+    const td = document.createElement('td');
+    if(!gddpEditMode){
+      td.textContent = (value === null || value === undefined || value === '') ? '—' : value;
+      if(opts.numeric){ td.style.textAlign = 'center'; }
+      return td;
+    }
+    const input = document.createElement('input');
+    input.type = opts.numeric ? 'text' : 'text';
+    input.value = (value === null || value === undefined) ? '' : value;
+    input.style.width = opts.width || '100%';
+    if(opts.numeric) input.style.textAlign = 'center';
+    input.addEventListener('change', ()=>{
+      let v = input.value.trim();
+      if(opts.numeric){
+        if(v === ''){ v = null; }
+        else if(!isNaN(Number(v))){ v = Number(v); }
+      }
+      onCommit(v);
+    });
+    td.appendChild(input);
+    return td;
+  }
+
+  gddpData.forEach(area=>{
+    area.projects.forEach((proj, pIdx)=>{
+      const tr = document.createElement('tr');
+
+      if(pIdx === 0){
+        const tdArea = document.createElement('td');
+        tdArea.rowSpan = area.projects.length;
+        tdArea.style.background = 'var(--paper)';
+        tdArea.style.fontWeight = '700';
+        tdArea.style.verticalAlign = 'top';
+        if(gddpEditMode){
+          const input = document.createElement('input');
+          input.type = 'text'; input.value = area.name; input.style.width='100%'; input.style.fontWeight='700';
+          input.addEventListener('change', ()=>{ area.name = input.value.trim(); });
+          tdArea.appendChild(input);
+        } else {
+          tdArea.textContent = area.name;
+        }
+        tr.appendChild(tdArea);
+      }
+
+      tr.appendChild(makeCell(proj.name, v=>{ proj.name = v; }, {width:'170px'}));
+      tr.appendChild(makeCell(proj.owner, v=>{ proj.owner = v; }, {width:'130px'}));
+      tr.appendChild(makeCell(proj.start, v=>{ proj.start = v; }, {width:'100px'}));
+      tr.appendChild(makeCell(proj.end, v=>{ proj.end = v; }, {width:'100px'}));
+      tr.appendChild(makeCell(proj.devManager, v=>{ proj.devManager = v; }, {width:'130px'}));
+      tr.appendChild(makeCell(proj.required, v=>{ proj.required = v; }, {numeric:true, width:'60px'}));
+      tr.appendChild(makeCell(proj.effort, v=>{ proj.effort = v; }, {width:'70px'}));
+
+      proj.monthly.forEach((v, mIdx)=>{
+        tr.appendChild(makeCell(v, nv=>{ proj.monthly[mIdx] = nv; }, {numeric:true, width:'55px'}));
+      });
+
+      // GDDP resources column
+      const tdGddp = document.createElement('td');
+      tdGddp.style.minWidth = '160px';
+      const chipsWrap = document.createElement('div');
+      chipsWrap.style.display = 'flex'; chipsWrap.style.flexWrap = 'wrap'; chipsWrap.style.gap = '4px';
+      (proj.gddp || []).forEach(name=>{
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.style.fontSize = '11px';
+        chip.textContent = name;
+        if(gddpEditMode){
+          const x = document.createElement('span');
+          x.textContent = ' ×';
+          x.style.cursor = 'pointer';
+          x.addEventListener('click', ()=>{
+            proj.gddp = proj.gddp.filter(n=>n!==name);
+            render();
+          });
+          chip.appendChild(x);
+        }
+        chipsWrap.appendChild(chip);
+      });
+      tdGddp.appendChild(chipsWrap);
+      if(gddpEditMode){
+        const addRow = document.createElement('div');
+        addRow.style.display = 'flex'; addRow.style.gap = '4px'; addRow.style.marginTop = '4px';
+        const input = document.createElement('input');
+        input.type = 'text'; input.placeholder = 'GDDP name';
+        input.setAttribute('list', 'gddpEmpDatalist');
+        input.style.width = '110px'; input.style.fontSize = '11px';
+        const addBtn = document.createElement('button');
+        addBtn.textContent = '+'; addBtn.className = 'btn btn-outline btn-sm';
+        addBtn.addEventListener('click', ()=>{
+          const val = input.value.trim();
+          if(!val) return;
+          const match = gddpAllEmployeeNames().find(n=>n.toLowerCase() === val.toLowerCase());
+          if(!match){ showToast('Not found in Employee List'); return; }
+          proj.gddp = proj.gddp || [];
+          if(!proj.gddp.includes(match)) proj.gddp.push(match);
+          render();
+        });
+        addRow.appendChild(input); addRow.appendChild(addBtn);
+        tdGddp.appendChild(addRow);
+      }
+      tr.appendChild(tdGddp);
+
+      if(gddpEditMode){
+        const tdRm = document.createElement('td');
+        const rmBtn = document.createElement('button');
+        rmBtn.className = 'rm-emp'; rmBtn.innerHTML = '×'; rmBtn.title = 'Remove project';
+        rmBtn.addEventListener('click', ()=>{
+          area.projects.splice(pIdx, 1);
+          render();
+        });
+        tdRm.appendChild(rmBtn);
+        tr.appendChild(tdRm);
+      }
+
+      tbody.appendChild(tr);
+    });
+
+    if(gddpEditMode){
+      const trAdd = document.createElement('tr');
+      const tdAdd = document.createElement('td');
+      tdAdd.colSpan = 8 + GDDP_MONTHS.length + 2;
+      tdAdd.style.background = 'var(--ice-soft)';
+      tdAdd.style.padding = '6px 10px';
+      const addBtn = document.createElement('button');
+      addBtn.className = 'btn btn-teal btn-sm';
+      addBtn.textContent = `+ Add Project to ${area.name}`;
+      addBtn.addEventListener('click', ()=>{
+        area.projects.push({ name:'New Project', owner:'', start:'', end:'', devManager:'', required:'', effort:'', monthly: GDDP_MONTHS.map(()=>null), gddp:[] });
+        render();
+      });
+      tdAdd.appendChild(addBtn);
+      trAdd.appendChild(tdAdd);
+      tbody.appendChild(trAdd);
+    }
+  });
+
+  // totals rows
+  function totalsRow(label, values, opts){
+    opts = opts || {};
+    const tr = document.createElement('tr');
+    tr.style.fontWeight = '700';
+    tr.style.background = opts.bg || 'var(--paper)';
+    const tdLabel = document.createElement('td');
+    tdLabel.colSpan = 8;
+    tdLabel.textContent = label;
+    tr.appendChild(tdLabel);
+    values.forEach(v=>{
+      const td = document.createElement('td');
+      td.textContent = v;
+      td.style.textAlign = 'center';
+      tr.appendChild(td);
+    });
+    const tdEmpty = document.createElement('td');
+    tdEmpty.colSpan = gddpEditMode ? 2 : 1;
+    tr.appendChild(tdEmpty);
+    tbody.appendChild(tr);
+  }
+
+  totalsRow(`Total Requirement: ${gddpTotalRequirement()}  ·  Total Allocation ->`, allocTotals);
+  totalsRow('Total Available (GDDP headcount) ->', GDDP_MONTHS.map(()=>totalAvailable), {bg:'#EEF3FC'});
+  totalsRow('Surplus / Shortfall ->', allocTotals.map(a=> (totalAvailable - a)), {bg:'#FBF1E4'});
+
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+  main.innerHTML = '';
+  main.appendChild(wrap);
+}
+
+/* ---------- Export ---------- */
+function downloadEmployeeListExcel(){
+  const rowsSrc = elistFilteredCache.length ? elistFilteredCache : state[currentMonth];
+  const header = ['S.No','Emp ID','Emp Name','Designation','Reporting Manager','Division','Team','Original DOJ','Status'];
+  const rows = [header];
+  rowsSrc.forEach((emp, idx)=>{
+    rows.push([idx+1, emp.empid, emp.name, emp.designation, emp.manager, emp.division||'', emp.team||'', emp.doj||'', emp.status||'Active']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:6},{wch:9},{wch:22},{wch:22},{wch:22},{wch:14},{wch:12},{wch:13},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Employee List');
+
+  const parts = [`Month_${currentMonth.replace(' ','_')}`];
+  if(elistMgrFilter !== '__ALL__') parts.push(elistMgrFilter.replace(/\s+/g,'_'));
+  if(elistTeamFilter !== '__ALL__') parts.push(elistTeamFilter.replace(/\s+/g,'_'));
+  if(elistDesigFilter !== '__ALL__') parts.push(elistDesigFilter.replace(/\s+/g,'_'));
+  XLSX.writeFile(wb, `Employee_List_${parts.join('_')}.xlsx`);
+}
+
+function downloadGddpExcel(){
+  const header = ['Solution Area/\nKey Initiative','Projects','Resposoble owner','Start date','End date ','Dev Manager','Required','Effort in Weeks',
+    ...GDDP_MONTHS, 'GDDP Resources'];
+  const rows = [header];
+
+  gddpData.forEach(area=>{
+    area.projects.forEach((proj, pIdx)=>{
+      rows.push([
+        pIdx === 0 ? area.name : '',
+        proj.name, proj.owner, proj.start, proj.end, proj.devManager,
+        proj.required === null ? '' : proj.required,
+        proj.effort === null ? '' : proj.effort,
+        ...proj.monthly.map(v=> v===null || v===undefined ? '' : v),
+        (proj.gddp||[]).join(', ')
+      ]);
+    });
+  });
+
+  const allocTotals = gddpMonthlyAllocationTotals();
+  const totalAvailable = state[currentMonth].length;
+  rows.push([]);
+  rows.push(['', 'Total Requirement->', '', '', '', '', gddpTotalRequirement(), 'Total Allocation:', ...allocTotals, '']);
+  rows.push([]);
+  rows.push(['', 'Non-HC GDDP Count->', '', '', '', '', '', 'Total Available:', ...GDDP_MONTHS.map(()=>totalAvailable), '']);
+  rows.push(['', '', '', '', '', '', '', 'Surplus/Shortfall:', ...allocTotals.map(a=>totalAvailable-a), '']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:20},{wch:30},{wch:18},{wch:12},{wch:12},{wch:20},{wch:10},{wch:14},
+    ...GDDP_MONTHS.map(()=>({wch:9})), {wch:26}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'GDDP resource alocation');
+  XLSX.writeFile(wb, 'GDDP_Resource_Allocation.xlsx');
+}
+
+function downloadWorkbook(){
+  const wb = XLSX.utils.book_new();
+  Object.keys(state).forEach(month=>{
+    const emps = state[month];
+    const header = ['S.No','Emp id','Emp name','Designation','Reporting manager', ...PROJECTS];
+    const rows = [header];
+    emps.forEach((emp, idx)=>{
+      const row = [idx+1, emp.empid, emp.name, emp.designation, emp.manager];
+      PROJECTS.forEach(p=>{ row.push(emp.allocations[p] !== undefined ? emp.allocations[p] : ''); });
+      rows.push(row);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:6},{wch:9},{wch:22},{wch:22},{wch:24}, ...PROJECTS.map(()=>({wch:14}))];
+    XLSX.utils.book_append_sheet(wb, ws, month.slice(0,31));
+  });
+
+  // Employee master sheet (uses current month's roster fields)
+  const masterEmps = state[currentMonth];
+  const mHeader = ['S.No','Emp ID','Emp Name','Designation','Reporting Manager','Division','Team','Original DOJ','Status'];
+  const mRows = [mHeader];
+  masterEmps.forEach((emp, idx)=>{
+    mRows.push([idx+1, emp.empid, emp.name, emp.designation, emp.manager, emp.division||'', emp.team||'', emp.doj||'', emp.status||'Active']);
+  });
+  const mws = XLSX.utils.aoa_to_sheet(mRows);
+  mws['!cols'] = [{wch:6},{wch:9},{wch:22},{wch:22},{wch:22},{wch:14},{wch:12},{wch:13},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, mws, 'Employee Master');
+
+  XLSX.writeFile(wb, 'Resource_Allocation_Export.xlsx');
+}
+
+initControls();
+render();
+</script>
+</body>
+</html>

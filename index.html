@@ -96,6 +96,37 @@
   .dropdown-no-result{ padding:8px 10px; font-size:12px; color:var(--ink-soft); }
   .custom-dropdown select{ display:none; }
   .addrow .custom-dropdown{ flex:1 1 220px; max-width:220px; }
+
+  /* multi-select dropdown (Reporting Manager filter) */
+  .ms-dropdown{ position:relative; min-width:220px; }
+  .ms-btn{
+    width:100%; text-align:left; border:1px solid var(--line); border-radius:3px; padding:8px 10px; font-size:13px;
+    background:#fff; color:var(--ink); font-family:Calibri, sans-serif; cursor:pointer;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .ms-btn:focus{ outline:2px solid var(--navy); outline-offset:1px; }
+  .ms-btn .ms-caret{ color:var(--ink-soft); font-size:10px; }
+  .ms-panel{
+    position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:50; min-width:240px;
+    background:#fff; border:1px solid var(--line); border-radius:4px; box-shadow:0 8px 24px rgba(20,27,77,.16);
+    display:none; padding:8px;
+  }
+  .ms-dropdown.open .ms-panel{ display:block; }
+  .ms-search{
+    width:100%; border:1px solid var(--line); border-radius:3px; padding:6px 8px; font-size:12.5px;
+    font-family:Calibri, sans-serif; margin-bottom:6px;
+  }
+  .ms-actions{ display:flex; justify-content:space-between; margin-bottom:6px; }
+  .ms-link{ border:none; background:none; color:var(--teal); font-size:11px; font-weight:700; cursor:pointer; padding:2px 4px; }
+  .ms-link:hover{ text-decoration:underline; }
+  .ms-options{ max-height:220px; overflow:auto; }
+  .ms-option{
+    display:flex; align-items:center; gap:8px; padding:6px 6px; font-size:12.5px; color:var(--ink);
+    border-radius:3px; cursor:pointer;
+  }
+  .ms-option:hover{ background:var(--ice-soft); }
+  .ms-option input{ margin:0; }
+  .ms-no-result{ padding:8px 6px; font-size:12px; color:var(--ink-soft); }
   .stats{ display:flex; gap:22px; margin-left:auto; align-items:center; }
   .stat{ text-align:right; }
   .stat .num{ font-family:Cambria, serif; font-size:19px; font-weight:700; color:var(--navy); line-height:1; }
@@ -263,7 +294,27 @@
 <!-- ===== ALLOCATIONS TOOLBAR ===== -->
 <div class="toolbar" id="allocToolbar">
   <div class="field"><label for="monthSelect">Month</label><select id="monthSelect"></select></div>
-  <div class="field"><label for="mgrSelect">Reporting Manager</label><select id="mgrSelect"></select></div>
+  <div class="field">
+    <label for="mgrMultiBtn">Reporting Manager</label>
+    <div class="ms-dropdown" id="mgrMultiDropdown">
+      <button type="button" class="ms-btn" id="mgrMultiBtn"><span id="mgrMultiBtnLabel">All Managers</span><span class="ms-caret">▾</span></button>
+      <div class="ms-panel" id="mgrMultiPanel">
+        <input type="text" class="ms-search" id="mgrMultiSearch" placeholder="Search manager…" autocomplete="off">
+        <div class="ms-actions">
+          <button type="button" class="ms-link" id="mgrMultiSelectAll">Select all</button>
+          <button type="button" class="ms-link" id="mgrMultiClear">Clear</button>
+        </div>
+        <div class="ms-options" id="mgrMultiOptions"></div>
+      </div>
+    </div>
+  </div>
+  <div class="field"><label for="allocStatusSelect">Total Allocation</label><select id="allocStatusSelect">
+    <option value="__ALL__">All</option>
+    <option value="NEQ100">Needs attention (≠ 100%)</option>
+    <option value="UNDER">Under-allocated (&lt; 100%)</option>
+    <option value="OVER">Over-allocated (&gt; 100%)</option>
+    <option value="ZERO">Not allocated (0%)</option>
+  </select></div>
   <div class="field"><label for="searchBox">Search employee</label><input type="text" id="searchBox" placeholder="Name or Emp ID…"></div>
   <button class="btn btn-outline btn-sm" id="addProjectBtn" style="align-self:flex-end;">+ Add Project</button>
   <button class="btn btn-teal btn-sm" id="addEmployeeBtnAlloc" style="align-self:flex-end;">+ Add Employee</button>
@@ -491,7 +542,8 @@ MONTH_SEQUENCE.forEach(m=>{
 });
 
 let currentMonth = MONTH_SEQUENCE[0];
-let currentMgr = "__ALL__";
+let currentMgrs = new Set(); // empty set == All Managers
+let allocStatusFilter = "__ALL__";
 let searchTerm = "";
 let collapsedManagers = new Set();
 let mgrSubTab = {};
@@ -507,7 +559,6 @@ let gddpSnapshot = null;
 let pendingAddManager = null; // when "+ Add Employee" clicked from a manager group header
 
 const monthSelect = document.getElementById('monthSelect');
-const mgrSelect = document.getElementById('mgrSelect');
 const searchBox = document.getElementById('searchBox');
 const main = document.getElementById('main');
 const toast = document.getElementById('toast');
@@ -542,8 +593,8 @@ function initControls(){
     collapsedManagers = new Set();
     render();
   });
-  setupSearchableSelect(mgrSelect, 'Search manager');
-  mgrSelect.addEventListener('change', ()=>{ currentMgr = mgrSelect.value; render(); });
+  setupManagerMultiSelect();
+  document.getElementById('allocStatusSelect').addEventListener('change', (e)=>{ allocStatusFilter = e.target.value; render(); });
   searchBox.addEventListener('input', ()=>{ searchTerm = searchBox.value.trim().toLowerCase(); render(); });
 
   document.getElementById('elistSearch').addEventListener('input', (e)=>{ elistSearchTerm = e.target.value.trim().toLowerCase(); render(); });
@@ -571,7 +622,7 @@ function initControls(){
   });
 
   document.getElementById('addProjectBtn').addEventListener('click', ()=> openProjectPanel());
-  document.getElementById('addEmployeeBtnAlloc').addEventListener('click', ()=> openEmployeePanel(currentMgr !== '__ALL__' ? currentMgr : null));
+  document.getElementById('addEmployeeBtnAlloc').addEventListener('click', ()=> openEmployeePanel(currentMgrs.size === 1 ? Array.from(currentMgrs)[0] : null));
   document.getElementById('addEmployeeBtnList').addEventListener('click', ()=> openEmployeePanel(null));
 
   document.getElementById('empPanelClose').addEventListener('click', closeEmployeePanel);
@@ -609,6 +660,8 @@ function openEmployeePanel(presetManager){
 }
 function closeEmployeePanel(){ document.getElementById('empOverlay').classList.add('hidden'); }
 
+function normName(s){ return String(s||'').trim().toLowerCase().replace(/\s+/g,' '); }
+
 function saveNewEmployee(){
   const name = document.getElementById('fEmpName').value.trim();
   if(!name){ showToast('Employee name is required'); return; }
@@ -621,6 +674,13 @@ function saveNewEmployee(){
     showToast('An employee with this Emp ID already exists');
     return;
   }
+
+  const dupe = emps.find(e=> normName(e.name) === normName(name) && normName(e.manager) === normName(mgr));
+  if(dupe){
+    showToast(`${name} is already listed under ${mgr} (Emp ID ${dupe.empid ?? '—'}) — not adding a duplicate`);
+    return;
+  }
+  const nameDupeOtherMgr = emps.find(e=> normName(e.name) === normName(name));
 
   emps.push({
     empid: empid,
@@ -636,10 +696,11 @@ function saveNewEmployee(){
   });
 
   closeEmployeePanel();
-  showToast(`${name} added under ${mgr}`);
-  if(activeTab === 'alloc' && currentMgr !== '__ALL__' && currentMgr !== mgr){
-    currentMgr = mgr;
-    mgrSelect.value = mgr;
+  showToast(nameDupeOtherMgr
+    ? `${name} added under ${mgr} — note: same name already exists under ${nameDupeOtherMgr.manager || 'Unassigned'}, please confirm it's not a duplicate`
+    : `${name} added under ${mgr}`);
+  if(activeTab === 'alloc' && currentMgrs.size > 0 && !currentMgrs.has(mgr)){
+    currentMgrs.add(mgr);
   }
   render();
 }
@@ -797,20 +858,89 @@ function handleRosterFile(evt){
 }
 
 /* ---------- Allocation helpers ---------- */
-function populateManagerSelect(){
-  const managers = allManagers();
-  mgrSelect.innerHTML = '';
-  const allOpt = document.createElement('option');
-  allOpt.value = '__ALL__'; allOpt.textContent = `All Managers (${managers.length})`;
-  mgrSelect.appendChild(allOpt);
-  managers.forEach(m=>{
-    const opt = document.createElement('option');
-    opt.value = m; opt.textContent = m;
-    mgrSelect.appendChild(opt);
+/* ---------- Reporting Manager multi-select ---------- */
+function setupManagerMultiSelect(){
+  const dropdown = document.getElementById('mgrMultiDropdown');
+  const btn = document.getElementById('mgrMultiBtn');
+  const search = document.getElementById('mgrMultiSearch');
+  const selectAllBtn = document.getElementById('mgrMultiSelectAll');
+  const clearBtn = document.getElementById('mgrMultiClear');
+
+  btn.addEventListener('click', ()=>{
+    dropdown.classList.toggle('open');
+    if(dropdown.classList.contains('open')){ search.value=''; renderManagerMultiOptions(); search.focus(); }
   });
-  if(!managers.includes(currentMgr) && currentMgr !== '__ALL__'){ currentMgr = '__ALL__'; }
-  mgrSelect.value = currentMgr;
-  setupSearchableSelect(mgrSelect, 'Search manager');
+  document.addEventListener('click', (e)=>{
+    if(!dropdown.contains(e.target)){ dropdown.classList.remove('open'); }
+  });
+  search.addEventListener('input', ()=> renderManagerMultiOptions());
+  selectAllBtn.addEventListener('click', ()=>{
+    currentMgrs = new Set();
+    render();
+    dropdown.classList.add('open');
+  });
+  clearBtn.addEventListener('click', ()=>{
+    currentMgrs = new Set();
+    render();
+    dropdown.classList.add('open');
+  });
+
+  renderManagerMultiOptions();
+}
+
+function updateManagerMultiLabel(){
+  const managers = allManagers();
+  const label = document.getElementById('mgrMultiBtnLabel');
+  if(!label) return;
+  if(currentMgrs.size === 0 || currentMgrs.size >= managers.length){
+    label.textContent = `All Managers (${managers.length})`;
+  } else if(currentMgrs.size === 1){
+    label.textContent = Array.from(currentMgrs)[0];
+  } else {
+    label.textContent = `${currentMgrs.size} managers selected`;
+  }
+}
+
+function renderManagerMultiOptions(){
+  const optionsBox = document.getElementById('mgrMultiOptions');
+  const search = document.getElementById('mgrMultiSearch');
+  if(!optionsBox || !search) return;
+  const managers = allManagers();
+
+  // drop selections for managers that no longer exist
+  Array.from(currentMgrs).forEach(m=>{ if(!managers.includes(m)) currentMgrs.delete(m); });
+
+  updateManagerMultiLabel();
+
+  const term = search.value.trim().toLowerCase();
+  const matched = managers.filter(m=> !term || m.toLowerCase().includes(term));
+
+  optionsBox.innerHTML = '';
+  if(!matched.length){
+    const none = document.createElement('div');
+    none.className = 'ms-no-result';
+    none.textContent = 'No matching managers';
+    optionsBox.appendChild(none);
+    return;
+  }
+
+  matched.forEach(m=>{
+    const row = document.createElement('label');
+    row.className = 'ms-option';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = currentMgrs.has(m);
+    cb.addEventListener('change', ()=>{
+      if(cb.checked){ currentMgrs.add(m); } else { currentMgrs.delete(m); }
+      render();
+      document.getElementById('mgrMultiDropdown').classList.add('open');
+    });
+    const span = document.createElement('span');
+    span.textContent = m;
+    row.appendChild(cb);
+    row.appendChild(span);
+    optionsBox.appendChild(row);
+  });
 }
 
 function populateElistMgrFilter(){
@@ -985,14 +1115,21 @@ function render(){
 }
 
 function renderAllocations(){
-  populateManagerSelect();
+  renderManagerMultiOptions();
   const emps = state[currentMonth];
 
   let filtered = emps.filter(e=>{
-    if(currentMgr !== '__ALL__' && e.manager !== currentMgr) return false;
+    if(currentMgrs.size > 0 && !currentMgrs.has(e.manager)) return false;
     if(searchTerm){
       const hay = (String(e.empid)+' '+e.name).toLowerCase();
       if(!hay.includes(searchTerm)) return false;
+    }
+    if(allocStatusFilter !== '__ALL__'){
+      const total = totalPct(e);
+      if(allocStatusFilter === 'NEQ100' && total === 100) return false;
+      if(allocStatusFilter === 'UNDER' && !(total < 100)) return false;
+      if(allocStatusFilter === 'OVER' && !(total > 100)) return false;
+      if(allocStatusFilter === 'ZERO' && total !== 0) return false;
     }
     return true;
   });
